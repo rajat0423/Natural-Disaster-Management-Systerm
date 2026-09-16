@@ -1,10 +1,11 @@
 /**
  * ============================================================
- * App.jsx — Disaster Management Platform Root Application
+ * App.jsx — Disaster Management Platform Root Navigation Shell
  * ============================================================
  */
 
 import { useState } from 'react';
+import { BRANDING } from './config/branding';
 import LandingOverview from './pages/LandingOverview';
 import DisasterMap from './pages/DisasterMap';
 import ExecutiveDashboard from './pages/ExecutiveDashboard';
@@ -14,6 +15,14 @@ import SystemHealth from './pages/SystemHealth';
 function App() {
   const [currentPage, setCurrentPage] = useState('overview');
 
+  const navItems = [
+    { id: 'overview', label: 'Incident Overview' },
+    { id: 'map', label: 'Operations Map' },
+    { id: 'dashboard', label: 'Executive Dashboard' },
+    { id: 'metrics', label: 'Research & Benchmarks' },
+    { id: 'health', label: 'System Diagnostics' }
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       
@@ -21,114 +30,64 @@ function App() {
       <header style={{
         backgroundColor: '#0f172a',
         color: '#ffffff',
-        padding: '0 24px',
-        height: '56px',
+        padding: '0 20px',
+        height: '52px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        borderBottom: '1px solid #1e293b',
         zIndex: 1000
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setCurrentPage('overview')}>
-            <span style={{ fontSize: '18px' }}>🛰️</span>
-            <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.3px', color: '#ffffff' }}>
-              Disaster Intelligence Command
+        {/* Brand & Mode Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+            onClick={() => setCurrentPage('overview')}
+          >
+            <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: '#38bdf8' }}></span>
+            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.2px', color: '#ffffff' }}>
+              {BRANDING.PRODUCT_NAME}
             </span>
           </div>
           <span style={{
-            fontSize: '10px',
+            fontSize: '9px',
             padding: '2px 6px',
-            borderRadius: '4px',
+            borderRadius: '3px',
             backgroundColor: '#1e293b',
             color: '#94a3b8',
             fontWeight: 700,
+            letterSpacing: '0.04em',
             border: '1px solid #334155'
           }}>
-            DECISION-SUPPORT
+            {BRANDING.SCENARIO_BADGE}
           </span>
         </div>
 
+        {/* Tab Navigation */}
         <nav style={{ display: 'flex', gap: '4px' }}>
-          <button
-            onClick={() => setCurrentPage('overview')}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '5px',
-              border: 'none',
-              backgroundColor: currentPage === 'overview' ? '#1e293b' : 'transparent',
-              color: currentPage === 'overview' ? '#38bdf8' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 700
-            }}
-          >
-            🏠 Incident Overview
-          </button>
-
-          <button
-            onClick={() => setCurrentPage('map')}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '5px',
-              border: 'none',
-              backgroundColor: currentPage === 'map' ? '#1e293b' : 'transparent',
-              color: currentPage === 'map' ? '#38bdf8' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 700
-            }}
-          >
-            🗺️ Operations Map & Routing
-          </button>
-
-          <button
-            onClick={() => setCurrentPage('dashboard')}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '5px',
-              border: 'none',
-              backgroundColor: currentPage === 'dashboard' ? '#1e293b' : 'transparent',
-              color: currentPage === 'dashboard' ? '#38bdf8' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 700
-            }}
-          >
-            📊 Executive Dashboard
-          </button>
-
-          <button
-            onClick={() => setCurrentPage('metrics')}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '5px',
-              border: 'none',
-              backgroundColor: currentPage === 'metrics' ? '#1e293b' : 'transparent',
-              color: currentPage === 'metrics' ? '#38bdf8' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 700
-            }}
-          >
-            🔬 AI Model Evaluation
-          </button>
-
-          <button
-            onClick={() => setCurrentPage('health')}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '5px',
-              border: 'none',
-              backgroundColor: currentPage === 'health' ? '#1e293b' : 'transparent',
-              color: currentPage === 'health' ? '#38bdf8' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 700
-            }}
-          >
-            ⚙️ System Diagnostics
-          </button>
+          {navItems.map(item => {
+            const isActive = currentPage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setCurrentPage(item.id)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  backgroundColor: isActive ? '#1e293b' : 'transparent',
+                  color: isActive ? '#38bdf8' : '#94a3b8',
+                  borderBottom: isActive ? '2px solid #38bdf8' : '2px solid transparent',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: isActive ? 700 : 500,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
       </header>
 

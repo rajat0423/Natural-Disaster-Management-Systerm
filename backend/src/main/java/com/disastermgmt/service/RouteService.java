@@ -27,7 +27,7 @@ public class RouteService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
-    public Map<String, Object> calculateAndSaveRoute(Long scenarioId, Long priorityId, Double originLon, Double originLat, String destinationType, Boolean avoidBlocked) {
+    public Map<String, Object> calculateAndSaveRoute(Long scenarioId, Long priorityId, Double originLon, Double originLat, String destinationType, Boolean avoidBlocked, String routePurpose) {
         String url = aiServiceUrl + "/api/routing/route";
 
         Map<String, Object> reqBody = new HashMap<>();
@@ -36,13 +36,15 @@ public class RouteService {
         reqBody.put("origin_lat", originLat);
         reqBody.put("destination_type", destinationType != null ? destinationType : "hospital");
         reqBody.put("avoid_blocked", avoidBlocked != null ? avoidBlocked : true);
+        reqBody.put("route_purpose", routePurpose != null ? routePurpose : "RESPONSE");
+        reqBody.put("target_building_id", priorityId);
 
         try {
             ResponseEntity<Map> resp = restTemplate.postForEntity(url, reqBody, Map.class);
             Map<String, Object> body = resp.getBody();
 
             if (body == null || !Boolean.TRUE.equals(body.get("success"))) {
-                throw new RuntimeException("Routing failed: " + (body != null ? body.get("error") : "empty response"));
+                throw new RuntimeException(body != null && body.get("error") != null ? String.valueOf(body.get("error")) : "NO ACCESSIBLE ROUTE FOUND — Graph traversal failed.");
             }
 
             Map<String, Object> routeGeoJson = (Map<String, Object>) body.get("route_geojson");
@@ -57,6 +59,7 @@ public class RouteService {
             LineString lineString = geometryFactory.createLineString(jtsCoords);
             Map<String, Object> props = (Map<String, Object>) routeGeoJson.get("properties");
             Map<String, Object> dest = (Map<String, Object>) props.get("destination");
+            Map<String, Object> orig = (Map<String, Object>) props.get("origin");
 
             EvacuationRoute entity = new EvacuationRoute();
             entity.setScenarioId(scenarioId);
@@ -69,7 +72,7 @@ public class RouteService {
             entity.setDistanceKm(Double.parseDouble(String.valueOf(props.get("distance_km"))));
             entity.setEstimatedMinutes(Double.parseDouble(String.valueOf(props.get("estimated_minutes"))));
             entity.setBlockedRoadsAvoidedCount((Integer) props.get("avoided_blockage_count"));
-            entity.setRouteType(String.valueOf(props.get("route_type")));
+            entity.setRouteType(String.valueOf(props.get("ui_label")));
             entity.setGeometry(lineString);
 
             EvacuationRoute saved = evacuationRouteRepository.save(entity);
@@ -78,17 +81,25 @@ public class RouteService {
             result.put("id", saved.getId());
             result.put("scenarioId", scenarioId);
             result.put("priorityAssessmentId", priorityId);
+            result.put("routePurpose", props.get("route_purpose"));
+            result.put("uiLabel", props.get("ui_label"));
+            result.put("purposeDescription", props.get("purpose_description"));
+            result.put("originName", orig.get("name"));
+            result.put("destinationName", dest.get("name"));
+            result.put("destinationType", dest.get("type"));
             result.put("distanceKm", saved.getDistanceKm());
             result.put("estimatedMinutes", saved.getEstimatedMinutes());
-            result.put("destinationName", saved.getDestinationName());
-            result.put("destinationType", saved.getDestinationType());
-            result.put("routeType", saved.getRouteType());
+            result.put("blockedRoadsAvoided", props.get("blocked_roads_avoided"));
+            result.put("avoidedBlockageCount", props.get("avoided_blockage_count"));
+            result.put("roadsTraversed", props.get("roads_traversed"));
+            result.put("routeSteps", props.get("route_steps"));
+            result.put("reachabilityStatus", props.get("reachability_status"));
             result.put("routeGeoJson", routeGeoJson);
             result.put("calculationTimeMs", props.get("calculation_time_ms"));
 
             return result;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to calculate route via AI service: " + e.getMessage(), e);
+            throw new RuntimeException("Routing failed: " + e.getMessage(), e);
         }
     }
 

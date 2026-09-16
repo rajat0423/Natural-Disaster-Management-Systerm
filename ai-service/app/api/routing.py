@@ -20,6 +20,8 @@ class RouteRequest(BaseModel):
     origin_lat: float
     destination_type: str = "hospital"  # "hospital" or "shelter"
     avoid_blocked: bool = True
+    route_purpose: Optional[str] = "EVACUATION"  # "RESPONDER" or "EVACUATION"
+    target_building_id: Optional[int] = None
 
 
 class PriorityRecalculateRequest(BaseModel):
@@ -30,14 +32,16 @@ class PriorityRecalculateRequest(BaseModel):
 @router.post("/route")
 async def calculate_route(req: RouteRequest):
     """
-    Calculates an optimal evacuation route avoiding blocked roads.
+    Calculates an optimal emergency route (Responder Access or Evacuation).
     """
     result = graph_router.calculate_route(
         scenario_id=req.scenario_id,
         origin_lon=req.origin_lon,
         origin_lat=req.origin_lat,
         destination_type=req.destination_type,
-        avoid_blocked=req.avoid_blocked
+        avoid_blocked=req.avoid_blocked,
+        route_purpose=req.route_purpose or "EVACUATION",
+        target_building_id=req.target_building_id
     )
     if not result.get("success", False):
         raise HTTPException(status_code=404, detail=result.get("error", "Route calculation failed."))

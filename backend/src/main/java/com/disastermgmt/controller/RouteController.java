@@ -14,7 +14,7 @@ import java.util.Map;
  * ROUTE CONTROLLER
  *
  * REST Endpoints:
- *   POST /api/routes            -> Calculate and save an evacuation route
+ *   POST /api/routes            -> Calculate and save an evacuation or responder route
  *   GET  /api/routes            -> List calculated routes for a scenario
  *   GET  /api/routes/{id}       -> Get route details
  *   GET  /api/routes/{id}/geojson -> Get route GeoJSON LineString
@@ -33,6 +33,7 @@ public class RouteController {
         private Double originLat;
         private String destinationType = "hospital";
         private Boolean avoidBlocked = true;
+        private String routePurpose = "EVACUATION"; // "RESPONDER" or "EVACUATION"
 
         public Long getScenarioId() { return scenarioId; }
         public void setScenarioId(Long scenarioId) { this.scenarioId = scenarioId; }
@@ -46,6 +47,8 @@ public class RouteController {
         public void setDestinationType(String destinationType) { this.destinationType = destinationType; }
         public Boolean getAvoidBlocked() { return avoidBlocked; }
         public void setAvoidBlocked(Boolean avoidBlocked) { this.avoidBlocked = avoidBlocked; }
+        public String getRoutePurpose() { return routePurpose; }
+        public void setRoutePurpose(String routePurpose) { this.routePurpose = routePurpose; }
     }
 
     @PostMapping
@@ -56,7 +59,8 @@ public class RouteController {
                 req.getOriginLon(),
                 req.getOriginLat(),
                 req.getDestinationType(),
-                req.getAvoidBlocked()
+                req.getAvoidBlocked(),
+                req.getRoutePurpose()
         ));
     }
 
