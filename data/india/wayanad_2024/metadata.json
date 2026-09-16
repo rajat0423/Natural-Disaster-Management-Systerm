@@ -1,0 +1,57 @@
+{
+  "event_id": "wayanad_2024",
+  "event_name": "Wayanad Landslide (Chooralmala-Mundakkai)",
+  "disaster_type": "LANDSLIDE",
+  "disaster_subtype": "Rainfall-Triggered Debris Flow",
+  "event_date": "2024-07-30",
+  "state": "Kerala",
+  "district": "Wayanad",
+  "country": "India",
+  "center_lat": 11.42,
+  "center_lon": 76.07,
+  "bbox": [76.04, 11.40, 76.16, 11.55],
+  "sentinel2_tile": "43PFS",
+  "pre_image_date": "2024-06-15",
+  "post_image_date": "2024-08-14",
+  "data_sources": [
+    {
+      "name": "Copernicus Sentinel-1 SAR GRD",
+      "type": "sar_imagery",
+      "url": "https://browser.dataspace.copernicus.eu/",
+      "format": "GRD GeoTIFF",
+      "license": "Copernicus Free and Open Data Policy",
+      "has_damage_labels": false,
+      "download_method": "CDSE API (free registration)",
+      "pre_date": "2024-07-20",
+      "post_date": "2024-08-01",
+      "notes": "Cloud-proof SAR - critical for monsoon event"
+    },
+    {
+      "name": "OpenStreetMap HOT Campaign",
+      "type": "building_footprints_with_damage",
+      "url": "https://wiki.openstreetmap.org/wiki/2024_Wayanad_landslides,_Kerala,_India",
+      "format": "GeoJSON via Overpass API",
+      "license": "ODbL",
+      "has_damage_labels": true,
+      "notes": "Volunteers tagged disaster:damage=destroyed on many buildings"
+    },
+    {
+      "name": "NRSC/ISRO Landslide Impact Maps",
+      "type": "disaster_maps",
+      "url": "https://bhuvan-app1.nrsc.gov.in/bhuvandisaster/",
+      "format": "PDF + Bhuvan WMS",
+      "license": "ISRO/GoI Open Data Policy",
+      "has_damage_labels": false,
+      "notes": "86,000 m² crown area + 8 km debris flow track"
+    },
+    {
+      "name": "International Charter Activation #900",
+      "type": "disaster_maps",
+      "url": "https://disasterscharter.org/",
+      "format": "Maps/reports",
+      "license": "Charter Terms"
+    }
+  ],
+  "label_availability": "PARTIAL_OSM_TAGS",
+  "notes": "OSM community tagged destroyed buildings; Sentinel-1 SAR needed due to monsoon clouds"
+}

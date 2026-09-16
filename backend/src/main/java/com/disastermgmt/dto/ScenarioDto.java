@@ -21,6 +21,12 @@ public class ScenarioDto {
     private Long hospitalCount;
     private Long shelterCount;
     private Long roadCount;
+    private String state;
+    private String district;
+    private String country;
+    private String disasterSubtype;
+    private String dataProvenance;
+    private Long hazardZoneCount;
 
     public ScenarioDto() {}
 
@@ -71,4 +77,22 @@ public class ScenarioDto {
 
     public Long getRoadCount() { return roadCount; }
     public void setRoadCount(Long roadCount) { this.roadCount = roadCount; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getDistrict() { return district; }
+    public void setDistrict(String district) { this.district = district; }
+
+    public String getCountry() { return country; }
+    public void setCountry(String country) { this.country = country; }
+
+    public String getDisasterSubtype() { return disasterSubtype; }
+    public void setDisasterSubtype(String disasterSubtype) { this.disasterSubtype = disasterSubtype; }
+
+    public String getDataProvenance() { return dataProvenance; }
+    public void setDataProvenance(String dataProvenance) { this.dataProvenance = dataProvenance; }
+
+    public Long getHazardZoneCount() { return hazardZoneCount; }
+    public void setHazardZoneCount(Long hazardZoneCount) { this.hazardZoneCount = hazardZoneCount; }
 }

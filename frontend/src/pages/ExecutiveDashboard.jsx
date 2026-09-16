@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { BRANDING } from '../config/branding';
 import api from '../services/api';
 
@@ -23,8 +24,9 @@ const PRIORITY_COLORS = {
 };
 
 function ExecutiveDashboard() {
+  const { scenarioId: urlScenarioId } = useParams();
   const [scenarios, setScenarios] = useState([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState(1);
+  const [selectedScenarioId, setSelectedScenarioId] = useState(urlScenarioId ? parseInt(urlScenarioId) : 1);
   const [scenarioData, setScenarioData] = useState(null);
   const [summary, setSummary] = useState(null);
   const [hospitals, setHospitals] = useState([]);

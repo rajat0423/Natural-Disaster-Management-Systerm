@@ -1,0 +1,95 @@
+# ============================================================
+# India-Specific Damage Assessment Model — Training Configuration
+# ============================================================
+#
+# Strategy:
+#   Phase 1: Use xBD-pretrained U-Net ResNet34 as baseline
+#   Phase 2: Fine-tune on Indian disaster imagery (Chamoli + Wayanad)
+#   Phase 3: Evaluate on held-out Indian data (Dharali cross-event test)
+#
+# IMPORTANT:
+#   - Chamoli 2021 has VERIFIED ground-truth labels (EIDC Westoby et al.)
+#   - Wayanad 2024 has PARTIAL labels (OSM community disaster:damage tags)
+#   - Dharali 2025 has WEAK labels only — used for cross-event testing
+#   - DO NOT mix weak-labelled data into training without explicit flagging
+
+model:
+  architecture: unet
+  encoder: resnet34
+  encoder_weights: imagenet
+  mode: pre_post          # 6-channel input (pre + post disaster)
+  num_classes: 5           # 0=Background, 1=NoDamage, 2=Minor, 3=Major, 4=Destroyed
+  pretrained_weights: models/baseline/unet_resnet34_pre_post.pth
+
+training:
+  epochs: 5
+  batch_size: 4
+  learning_rate: 5.0e-5    # Lower LR for fine-tuning (vs 1e-4 for from-scratch)
+  weight_decay: 1.0e-4
+  optimizer: adamw
+  scheduler: cosine        # Cosine annealing for smooth convergence
+  loss: ce_dice            # Combined Cross-Entropy + Dice Loss
+  image_size: [512, 512]
+  augmentation:
+    - horizontal_flip
+    - vertical_flip
+    - rotate_90
+
+data:
+  root_dir: data/india
+  manifest: data/india/india_manifest.csv
+  
+  # Primary experiment: Train on verified + partial labels
+  train_events:
+    - chamoli_2021        # VERIFIED_GROUND_TRUTH (EIDC shapefiles)
+    - wayanad_2024        # PARTIAL_OSM_TAGS (community mapping)
+  
+  # Cross-event generalisation test
+  test_events:
+    - dharali_2025        # WEAK_INFERENCE_ONLY — evaluates geographic transfer
+  
+  val_fraction: 0.15       # Hold out 15% of train events for validation
+  min_confidence: 0.3      # Filter tiles with very low-confidence labels
+  
+  # Alternate experiment configurations for cross-event study
+  experiments:
+    exp_chamoli_only:
+      train: [chamoli_2021]
+      test: [wayanad_2024, dharali_2025]
+      description: "Train on verified Chamoli labels only"
+    
+    exp_wayanad_only:
+      train: [wayanad_2024]
+      test: [chamoli_2021, dharali_2025]
+      description: "Train on Wayanad OSM labels only"
+    
+    exp_cross_event:
+      train: [chamoli_2021, wayanad_2024]
+      test: [dharali_2025]
+      description: "Primary cross-event generalisation experiment"
+
+evaluation:
+  metrics:
+    - iou
+    - dice
+    - precision
+    - recall
+    - macro_f1
+    - weighted_f1
+    - confusion_matrix
+  
+  comparison:
+    baseline_model: models/baseline/unet_resnet34_pre_post.pth
+    india_model: models/india_v1/best_model.pth
+  
+  # Per-class evaluation is mandatory (damage classes are imbalanced)
+  per_class: true
+  
+  # Cross-event generalisation matrix
+  cross_event: true
+
+output:
+  checkpoint_dir: models/india_v1
+  results_dir: outputs/india_evaluation
+  training_log: outputs/india_evaluation/training_log.json
+  comparison_report: outputs/india_evaluation/baseline_vs_india.json

@@ -32,14 +32,40 @@ DB_PARAMS = {
     "port": 5432
 }
 
-# Dedicated Demonstration Response Staging Point (Pacific Coast Corridor Access)
-DEMO_STAGING_POINT = {
-    "name": "Demonstration Response Staging Point",
-    "type": "Response Staging Base",
-    "lon": -118.6750,
-    "lat": 34.0320,
-    "description": "Designated staging area for emergency response vehicles and equipment deployment."
+# Scenario-specific Response Staging Points
+STAGING_POINTS = {
+    # Scenario 1: Woolsey Fire 2018 — Pacific Coast Corridor Access
+    1: {
+        "name": "Woolsey Fire Response Staging Point",
+        "type": "Response Staging Base",
+        "lon": -118.6750, "lat": 34.0320,
+        "description": "Pacific Coast corridor staging area for emergency deployment."
+    },
+    # Scenario 2: Chamoli 2021 — Gopeshwar (District HQ)
+    2: {
+        "name": "Chamoli District HQ (Gopeshwar)",
+        "type": "District Emergency Operations Center",
+        "lon": 79.3301, "lat": 30.4100,
+        "description": "Gopeshwar District EOC — primary staging for Rishiganga/Dhauliganga response."
+    },
+    # Scenario 3: Wayanad 2024 — Kalpetta (District HQ)
+    3: {
+        "name": "Kalpetta Emergency Operations Center",
+        "type": "District Emergency Operations Center",
+        "lon": 76.0833, "lat": 11.6083,
+        "description": "Kalpetta EOC — Wayanad district response coordination for Chooralmala/Mundakkai."
+    },
+    # Scenario 4: Dharali 2025 — Uttarkashi (District HQ)
+    4: {
+        "name": "Uttarkashi District HQ",
+        "type": "District Emergency Operations Center",
+        "lon": 78.4380, "lat": 30.7298,
+        "description": "Uttarkashi District EOC — staging for Dharali/Harsil corridor response."
+    }
 }
+
+# Legacy alias for backward compatibility
+DEMO_STAGING_POINT = STAGING_POINTS[1]
 
 
 def haversine_dist_meters(lat1, lon1, lat2, lon2):
@@ -149,9 +175,11 @@ class DisasterGraphRouter:
         if is_response_access:
             # -------------------------------------------------------------
             # RESPONDER ROUTE: Staging Point -> Priority Building
+            # Uses scenario-specific staging point (District HQ / EOC)
             # -------------------------------------------------------------
-            staging_lon = DEMO_STAGING_POINT["lon"]
-            staging_lat = DEMO_STAGING_POINT["lat"]
+            staging = STAGING_POINTS.get(scenario_id, STAGING_POINTS.get(1, DEMO_STAGING_POINT))
+            staging_lon = staging["lon"]
+            staging_lat = staging["lat"]
 
             start_node, start_dist_m = self.find_nearest_node(G, staging_lon, staging_lat)
             target_node, target_dist_m = self.find_nearest_node(G, origin_lon, origin_lat)
@@ -166,11 +194,11 @@ class DisasterGraphRouter:
                 }
 
             origin_info = {
-                "name": DEMO_STAGING_POINT["name"],
-                "type": DEMO_STAGING_POINT["type"],
+                "name": staging["name"],
+                "type": staging["type"],
                 "lon": staging_lon,
                 "lat": staging_lat,
-                "notes": "In production, this would be an Emergency Operations Center, fire station, or designated response base."
+                "notes": staging.get("description", "Emergency Operations Center / Response Staging Base")
             }
             destination_info = {
                 "name": f"Structure #{target_building_id or 'Target'}",

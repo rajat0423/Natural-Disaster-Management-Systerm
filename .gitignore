@@ -105,3 +105,29 @@ logs/
 
 # === Docker Overrides ===
 docker-compose.override.yml
+
+# === India-Specific Data (large satellite imagery, DEMs, building footprints) ===
+data/india/*/raw/
+data/india/*/processed/
+data/india/*/sentinel2/
+data/india/*/sentinel1/
+data/india/*/dem/
+data/india/common/dem/
+data/india/common/boundaries/*.shp
+data/india/common/boundaries/*.dbf
+data/india/common/boundaries/*.shx
+data/india/common/boundaries/*.prj
+*.tif
+*.tiff
+*.jp2
+*.hgt
+*.geotiff
+
+# === India Model Checkpoints ===
+models/india_v*/
+models/baseline/*.pth
+
+# === Training Outputs ===
+outputs/india_*/
+outputs/training_logs/
+outputs/evaluation_results_india*.json

@@ -44,19 +44,58 @@ DB_PARAMS = {
 }
 
 DEFAULT_WEIGHTS = {
-    "severity": 0.40,
-    "population": 0.25,
+    "severity": 0.35,
+    "population": 0.20,
     "infrastructure": 0.20,
-    "accessibility": 0.15
+    "accessibility": 0.15,
+    "hazard_proximity": 0.10
+}
+
+# Disaster-type-specific weight profiles
+DISASTER_WEIGHT_PROFILES = {
+    "LANDSLIDE": {
+        "severity": 0.35,
+        "population": 0.20,
+        "infrastructure": 0.15,
+        "accessibility": 0.15,
+        "hazard_proximity": 0.15
+    },
+    "FLASH_FLOOD": {
+        "severity": 0.30,
+        "population": 0.20,
+        "infrastructure": 0.15,
+        "accessibility": 0.25,
+        "hazard_proximity": 0.10
+    },
+    "FLOOD": {
+        "severity": 0.30,
+        "population": 0.25,
+        "infrastructure": 0.20,
+        "accessibility": 0.10,
+        "hazard_proximity": 0.15
+    },
+    "WILDFIRE": {
+        "severity": 0.40,
+        "population": 0.25,
+        "infrastructure": 0.20,
+        "accessibility": 0.15,
+        "hazard_proximity": 0.00
+    }
 }
 
 
 class PriorityEngine:
-    def __init__(self, weights=None):
-        self.weights = weights or DEFAULT_WEIGHTS
+    def __init__(self, weights=None, disaster_type=None):
+        if weights:
+            self.weights = weights
+        elif disaster_type and disaster_type.upper() in DISASTER_WEIGHT_PROFILES:
+            self.weights = DISASTER_WEIGHT_PROFILES[disaster_type.upper()]
+        else:
+            self.weights = DEFAULT_WEIGHTS
         # Normalize weights to sum to 1.0
         tot = sum(self.weights.values())
         self.weights = {k: v / tot for k, v in self.weights.items()}
+
 
     def calculate_scenario_priorities(self, scenario_id=1, db_params=DB_PARAMS):
         """
@@ -158,6 +197,23 @@ class PriorityEngine:
         w_pop = self.weights["population"]
         w_inf = self.weights["infrastructure"]
         w_acc = self.weights["accessibility"]
+        w_haz = self.weights.get("hazard_proximity", 0.0)
+
+        # 6. Fetch Hazard Zones (if table exists)
+        hazard_zones = []
+        try:
+            cur.execute("""
+                SELECT id, hazard_type, severity, ST_AsText(geometry)
+                FROM hazard_zones
+                WHERE scenario_id = %s;
+            """, (scenario_id,))
+            for hz in cur.fetchall():
+                hz_geom = wkt.loads(hz[3])
+                hazard_zones.append({
+                    "id": hz[0], "type": hz[1], "severity": hz[2], "geom": hz_geom
+                })
+        except Exception:
+            conn.rollback()  # Table may not exist yet for legacy scenarios
 
         for row in damage_rows:
             pred_id = row[0]
@@ -239,8 +295,45 @@ class PriorityEngine:
                 acc_score = 0.25
                 acc_desc = f"Passable access: {min_open_dist:.1f}km to open highway"
 
-            # --- Weighted Linear Score ---
-            priority_score = (w_sev * sev_score) + (w_pop * pop_score) + (w_inf * inf_score) + (w_acc * acc_score)
+            # --- Factor 5: Hazard Proximity Score (H) ---
+            haz_score = 0.0
+            haz_desc = "No active hazard zones mapped"
+            if hazard_zones:
+                min_haz_dist = float("inf")
+                nearest_haz_type = ""
+                for hz in hazard_zones:
+                    try:
+                        d_km = haversine_distance_km(
+                            b_lat, b_lon,
+                            hz["geom"].centroid.y, hz["geom"].centroid.x
+                        )
+                        if d_km < min_haz_dist:
+                            min_haz_dist = d_km
+                            nearest_haz_type = hz["type"]
+                    except Exception:
+                        continue
+                
+                if min_haz_dist < 0.5:
+                    haz_score = 1.0
+                    haz_desc = f"Inside/adjacent to {nearest_haz_type} zone ({min_haz_dist:.2f}km)"
+                elif min_haz_dist < 2.0:
+                    haz_score = 0.70
+                    haz_desc = f"Near {nearest_haz_type} zone ({min_haz_dist:.1f}km)"
+                elif min_haz_dist < 5.0:
+                    haz_score = 0.35
+                    haz_desc = f"Moderate distance from {nearest_haz_type} ({min_haz_dist:.1f}km)"
+                else:
+                    haz_score = 0.10
+                    haz_desc = f"Distant from mapped hazard zones ({min_haz_dist:.1f}km)"
+
+            # --- 5-Factor Weighted Linear Score ---
+            priority_score = (
+                (w_sev * sev_score) +
+                (w_pop * pop_score) +
+                (w_inf * inf_score) +
+                (w_acc * acc_score) +
+                (w_haz * haz_score)
+            )
             priority_score = round(min(1.0, max(0.0, priority_score)), 4)
 
             # Assign Priority Level
@@ -255,13 +348,14 @@ class PriorityEngine:
 
             counts_by_level[priority_level] += 1
 
-            # Build Human-Readable Structured Explanation
+            # Build Human-Readable 5-Factor Explanation
             reason = (
                 f"{priority_level} PRIORITY (Score: {priority_score:.2f}) — "
                 f"Severity: {d_class.upper()} ({sev_score*100:.0f}%), "
                 f"Exposure: {est_occupants} ({pop_score*100:.0f}%), "
                 f"Infrastructure: {inf_desc}, "
-                f"Accessibility: {acc_desc}."
+                f"Accessibility: {acc_desc}, "
+                f"Hazard: {haz_desc}."
             )
 
             # Insert into PostGIS
@@ -270,20 +364,26 @@ class PriorityEngine:
                     scenario_id, building_id, damage_prediction_id,
                     priority_score, priority_level,
                     severity_score, population_score, infrastructure_score, accessibility_score,
+                    hazard_proximity_score,
                     weight_severity, weight_population, weight_infrastructure, weight_accessibility,
+                    weight_hazard_proximity,
                     explanation, geometry
                 ) VALUES (
                     %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s,
+                    %s,
                     %s, %s, %s, %s,
+                    %s,
                     %s, ST_SetSRID(ST_GeomFromText(%s), 4326)
                 ) RETURNING id;
             """, (
                 scenario_id, bldg_id, pred_id,
                 priority_score, priority_level,
                 sev_score, pop_score, inf_score, acc_score,
+                haz_score,
                 w_sev, w_pop, w_inf, w_acc,
+                w_haz,
                 reason, poly_wkt
             ))
             pri_id = cur.fetchone()[0]
@@ -298,13 +398,15 @@ class PriorityEngine:
                     "severity_score": round(sev_score, 3),
                     "population_score": round(pop_score, 3),
                     "infrastructure_score": round(inf_score, 3),
-                    "accessibility_score": round(acc_score, 3)
+                    "accessibility_score": round(acc_score, 3),
+                    "hazard_proximity_score": round(haz_score, 3)
                 },
                 "weights": {
                     "w_severity": w_sev,
                     "w_population": w_pop,
                     "w_infrastructure": w_inf,
-                    "w_accessibility": w_acc
+                    "w_accessibility": w_acc,
+                    "w_hazard_proximity": w_haz
                 },
                 "damage_class": d_class,
                 "confidence": conf,

@@ -31,4 +31,16 @@ const api = axios.create({
   },
 });
 
+export const apiService = {
+  // Hazard zones
+  getHazardZones: (scenarioId) => api.get(`/map-layers/hazards/${scenarioId}`),
+  // Data sources
+  getDataSources: (scenarioId) => api.get(`/data-sources?scenarioId=${scenarioId}`),
+  // Models
+  getModels: () => api.get('/models'),
+  getModelById: (id) => api.get(`/models/${id}`),
+  // Reports
+  getReport: (scenarioId) => api.get(`/reports/${scenarioId}`),
+};
+
 export default api;

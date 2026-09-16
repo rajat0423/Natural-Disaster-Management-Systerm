@@ -1,0 +1,17 @@
+{
+  "registry_name": "India Disaster Management System Scenarios",
+  "scenarios": [
+    {
+      "id": "chamoli_2021",
+      "path": "chamoli_2021/metadata.json"
+    },
+    {
+      "id": "wayanad_2024",
+      "path": "wayanad_2024/metadata.json"
+    },
+    {
+      "id": "dharali_2025",
+      "path": "dharali_2025/metadata.json"
+    }
+  ]
+}

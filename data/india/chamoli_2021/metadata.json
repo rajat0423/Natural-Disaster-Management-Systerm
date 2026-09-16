@@ -1,0 +1,61 @@
+{
+  "event_id": "chamoli_2021",
+  "event_name": "Chamoli Flash Flood / Rishiganga-Dhauliganga Disaster",
+  "disaster_type": "FLASH_FLOOD",
+  "disaster_subtype": "Ice-Rock Avalanche Triggered Flash Flood",
+  "event_date": "2021-02-07",
+  "state": "Uttarakhand",
+  "district": "Chamoli",
+  "country": "India",
+  "center_lat": 30.4,
+  "center_lon": 79.7,
+  "bbox": [79.55, 30.25, 79.85, 30.55],
+  "sentinel2_tile": "44TMR",
+  "pre_image_date": "2021-02-05",
+  "post_image_date": "2021-02-10",
+  "data_sources": [
+    {
+      "name": "EIDC Westoby et al. Shapefiles",
+      "type": "building_damage_vector",
+      "url": "https://doi.org/10.5285/a763e254-c249-4934-b0fb-c3b808b37db6",
+      "format": "Shapefile",
+      "license": "Open Government Licence / UKRI Data Licence",
+      "has_damage_labels": true,
+      "download_method": "Direct download, no registration",
+      "notes": "Contains building/bridge condition/damage attribute tables for Rishiganga and Dhauliganga catchments"
+    },
+    {
+      "name": "Copernicus Sentinel-2 L2A",
+      "type": "optical_imagery",
+      "url": "https://browser.dataspace.copernicus.eu/",
+      "format": "JP2/GeoTIFF 10m",
+      "license": "Copernicus Free and Open Data Policy",
+      "has_damage_labels": false,
+      "download_method": "Copernicus Data Space Ecosystem (free registration)",
+      "pre_date": "2021-02-05",
+      "post_date": "2021-02-10",
+      "notes": "Clear winter skies - excellent optical conditions"
+    },
+    {
+      "name": "Zenodo Shugar et al. High-Res DEM",
+      "type": "dem",
+      "url_pre": "https://doi.org/10.5281/zenodo.4533678",
+      "url_post": "https://doi.org/10.5281/zenodo.4533679",
+      "format": "COG GeoTIFF 2m",
+      "license": "CC-BY-4.0",
+      "has_damage_labels": false,
+      "publication": "Shugar et al., Science 373(6552), 2021"
+    },
+    {
+      "name": "International Charter Activation #698",
+      "type": "disaster_maps",
+      "url": "https://disasterscharter.org/web/guest/activations/-/article/flood-in-india-activation-698-",
+      "format": "GeoPDF/Shapefile",
+      "license": "Charter Terms",
+      "has_damage_labels": true,
+      "notes": "Partial - damaged infrastructure zones mapped as polygons"
+    }
+  ],
+  "label_availability": "VERIFIED_GROUND_TRUTH",
+  "notes": "Strongest scenario for research - EIDC provides actual machine-readable building/bridge damage labels"
+}

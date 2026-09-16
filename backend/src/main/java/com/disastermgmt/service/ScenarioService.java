@@ -28,6 +28,9 @@ public class ScenarioService {
     @Autowired
     private RoadRepository roadRepository;
 
+    @Autowired
+    private HazardZoneRepository hazardZoneRepository;
+
     public List<ScenarioDto> getAllScenarios() {
         return scenarioRepository.findAll().stream()
                 .map(this::toDto)
@@ -52,11 +55,17 @@ public class ScenarioService {
         dto.setPostImagePath(s.getPostImagePath());
         dto.setDataSource(s.getDataSource());
         dto.setIsDemo(s.getIsDemo());
+        dto.setState(s.getState());
+        dto.setDistrict(s.getDistrict());
+        dto.setCountry(s.getCountry());
+        dto.setDisasterSubtype(s.getDisasterSubtype());
+        dto.setDataProvenance(s.getDataProvenance());
 
         dto.setBuildingCount(buildingRepository.countByScenarioId(s.getId()));
         dto.setHospitalCount(hospitalRepository.countByScenarioId(s.getId()));
         dto.setShelterCount(shelterRepository.countByScenarioId(s.getId()));
         dto.setRoadCount(roadRepository.countByScenarioId(s.getId()));
+        dto.setHazardZoneCount(hazardZoneRepository.countByScenarioId(s.getId()));
 
         return dto;
     }

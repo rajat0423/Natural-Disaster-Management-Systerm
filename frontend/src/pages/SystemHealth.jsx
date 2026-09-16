@@ -1,14 +1,11 @@
-/**
- * ============================================================
- * SystemHealth.jsx — System Status & Infrastructure Health
- * ============================================================
- */
-
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BRANDING } from '../config/branding';
-import api from '../services/api';
+import api, { apiService } from '../services/api';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 function SystemHealth() {
+  const navigate = useNavigate();
   const [healthData, setHealthData] = useState({
     backend: { status: 'UNKNOWN', latency: null },
     aiService: { status: 'UNKNOWN', latency: null },
@@ -30,7 +27,8 @@ function SystemHealth() {
     let bLatency = null;
 
     try {
-      const resp = await api.get('/health', { timeout: 3000 });
+      // using apiService instead of api directly
+      const resp = await apiService.get('/health', { timeout: 3000 });
       bLatency = Math.round(performance.now() - t0);
       if (resp.status === 200) {
         bStatus = 'UP';
@@ -50,7 +48,7 @@ function SystemHealth() {
         aiStatus = 'UP';
       }
     } catch (e) {
-      aiStatus = 'UP';
+      aiStatus = 'DOWN';
     }
 
     setHealthData({
@@ -71,178 +69,172 @@ function SystemHealth() {
     {
       name: 'AI Damage Engine',
       tech: 'FastAPI + PyTorch (ResNet34 U-Net & Siamese ResNet18)',
-      desc: 'Performs multi-temporal satellite segmentation and 4-class building damage classification.',
+      desc: 'Performs multi-temporal satellite segmentation and classification.',
       status: 'Operational'
     },
     {
       name: 'Decision Engine',
       tech: 'Multi-Factor Triage Priority Model',
-      desc: 'Calculates explainable priority urgency scores across Severity, Population, Infrastructure, and Accessibility.',
+      desc: 'Calculates explainable priority urgency scores.',
       status: 'Operational'
     },
     {
       name: 'Hazard Routing Engine',
       tech: 'NetworkX Graph Dijkstra Algorithm',
-      desc: 'Generates responder access routes and safe evacuation paths detouring around active road closures.',
+      desc: 'Generates responder access routes avoiding closures.',
       status: 'Operational'
     },
     {
       name: 'Application Backend',
       tech: 'Spring Boot 3.4 + Hibernate Spatial',
-      desc: 'Serves REST API endpoints, orchestrates microservices, and serializes JTS GeoJSON FeatureCollections.',
+      desc: 'Serves REST API endpoints and orchestrates microservices.',
       status: 'Operational'
     },
     {
       name: 'Presentation Layer',
       tech: 'React 19 + Leaflet GIS',
-      desc: 'Renders the 3-column operations command map, interactive triage cards, and executive dashboards.',
+      desc: 'Renders mapping layers and dashboards.',
       status: 'Operational'
     }
   ];
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      
-      {/* Top Banner */}
-      <div style={{ marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: '20px', borderBottom: '1px solid #334155', paddingBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#f8fafc', margin: '0 0 4px 0' }}>
             System Status & Infrastructure
           </h1>
-          <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>
+          <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
             Real-time diagnostic health across core database, model engines, microservices, and user interfaces.
           </p>
         </div>
 
         <button
           onClick={checkHealth}
+          disabled={loading}
           style={{
-            backgroundColor: '#f1f5f9',
-            color: '#0f172a',
-            border: '1px solid #cbd5e1',
+            backgroundColor: '#1e293b',
+            color: '#f8fafc',
+            border: '1px solid #334155',
             padding: '6px 14px',
             borderRadius: '6px',
             fontSize: '11px',
             fontWeight: 600,
-            cursor: 'pointer'
+            cursor: loading ? 'not-allowed' : 'pointer'
           }}
         >
           {loading ? 'Checking...' : 'Refresh Status'}
         </button>
       </div>
 
-      {/* Global Status Pill */}
-      <div style={{
-        backgroundColor: '#f0fdf4',
-        border: '1px solid #bbf7d0',
-        borderRadius: '8px',
-        padding: '14px 18px',
-        marginBottom: '20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#16a34a' }}></span>
-        <div>
-          <div style={{ fontSize: '13px', fontWeight: 800, color: '#166534' }}>
-            SYSTEM STATUS: All Systems Operational
-          </div>
-          <div style={{ fontSize: '11px', color: '#15803d' }}>
-            Core database, microservices, decision models, and GIS interfaces are healthy and communicating.
-          </div>
-        </div>
-      </div>
-
-      {/* Subsystems Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-        {subsystems.map((sub, idx) => (
-          <div key={idx} style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <strong style={{ fontSize: '13px', color: '#0f172a' }}>{sub.name}</strong>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#16a34a', backgroundColor: '#f0fdf4', padding: '2px 6px', borderRadius: '3px', border: '1px solid #bbf7d0' }}>
-                ● {sub.status}
-              </span>
-            </div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-              {sub.tech}
-            </div>
-            <div style={{ fontSize: '11px', color: '#475569', lineHeight: 1.4 }}>
-              {sub.desc}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Expandable Advanced Diagnostics */}
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: '#ffffff', overflow: 'hidden' }}>
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            background: '#f8fafc',
-            border: 'none',
-            textAlign: 'left',
-            fontSize: '12px',
-            fontWeight: 700,
-            color: '#0f172a',
-            cursor: 'pointer',
+      {loading ? (
+        <LoadingSpinner message="Checking system health..." />
+      ) : (
+        <>
+          <div style={{
+            backgroundColor: '#064e3b',
+            border: '1px solid #059669',
+            borderRadius: '8px',
+            padding: '14px 18px',
+            marginBottom: '20px',
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}
-        >
-          <span>Advanced Diagnostic Ports & Metrics</span>
-          <span>{showAdvanced ? '▲ Collapse' : '▼ Expand'}</span>
-        </button>
-
-        {showAdvanced && (
-          <div style={{ padding: '16px', borderTop: '1px solid #e2e8f0' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f1f5f9', textAlign: 'left' }}>
-                  <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>Subsystem Endpoint</th>
-                  <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>Port</th>
-                  <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>Protocol</th>
-                  <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>Latency</th>
-                  <th style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>Spring Boot REST Backend</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>8081</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>HTTP / JSON</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>{healthData.backend.latency || 4} ms</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', color: '#16a34a', fontWeight: 700 }}>200 OK</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>FastAPI AI & Routing Service</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>8000</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>HTTP / REST</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>{healthData.aiService.latency || 6} ms</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', color: '#16a34a', fontWeight: 700 }}>200 OK</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>PostgreSQL 17 / PostGIS</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>5432</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>JDBC / Spatial SQL</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>&lt;1 ms</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', color: '#16a34a', fontWeight: 700 }}>CONNECTED</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>React 19 / Vite Server</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>5173</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>HTTP / SPA</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0' }}>—</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #e2e8f0', color: '#16a34a', fontWeight: 700 }}>LIVE</td>
-                </tr>
-              </tbody>
-            </table>
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#34d399' }}></span>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#6ee7b7' }}>
+                SYSTEM STATUS: All Systems Operational
+              </div>
+              <div style={{ fontSize: '11px', color: '#a7f3d0' }}>
+                Core database, microservices, decision models, and GIS interfaces are healthy and communicating.
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+            {subsystems.map((sub, idx) => (
+              <div key={idx} style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <strong style={{ fontSize: '13px', color: '#f8fafc' }}>{sub.name}</strong>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#34d399', backgroundColor: '#064e3b', padding: '2px 6px', borderRadius: '3px', border: '1px solid #059669' }}>
+                    ● {sub.status}
+                  </span>
+                </div>
+                <div style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
+                  {sub.tech}
+                </div>
+                <div style={{ fontSize: '11px', color: '#cbd5e1', lineHeight: 1.4 }}>
+                  {sub.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ border: '1px solid #334155', borderRadius: '6px', backgroundColor: '#1e293b', overflow: 'hidden' }}>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: '#0f172a',
+                border: 'none',
+                textAlign: 'left',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#f8fafc',
+                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <span>Advanced Diagnostic Ports & Metrics</span>
+              <span>{showAdvanced ? '▲ Collapse' : '▼ Expand'}</span>
+            </button>
+
+            {showAdvanced && (
+              <div style={{ padding: '16px', borderTop: '1px solid #334155' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', color: '#f8fafc' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#0f172a', textAlign: 'left' }}>
+                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Subsystem Endpoint</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Port</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Protocol</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Latency</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>Spring Boot REST Backend</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>8081</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>HTTP / JSON</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>{healthData.backend.latency || 4} ms</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#34d399', fontWeight: 700 }}>{healthData.backend.status}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>FastAPI AI & Routing Service</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>8000</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>HTTP / REST</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>{healthData.aiService.latency || 6} ms</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#34d399', fontWeight: 700 }}>{healthData.aiService.status}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>PostgreSQL 17 / PostGIS</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>5432</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>JDBC / Spatial SQL</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>&lt;1 ms</td>
+                      <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#34d399', fontWeight: 700 }}>{healthData.database.status}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

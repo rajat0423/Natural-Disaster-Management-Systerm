@@ -1,0 +1,45 @@
+{
+  "event_id": "dharali_2025",
+  "event_name": "Dharali Flash Flood (Uttarkashi)",
+  "disaster_type": "FLASH_FLOOD",
+  "disaster_subtype": "Cloudburst / Debris Flow",
+  "event_date": "2025-08-05",
+  "state": "Uttarakhand",
+  "district": "Uttarkashi",
+  "country": "India",
+  "center_lat": 31.03,
+  "center_lon": 78.75,
+  "bbox": [78.60, 30.90, 78.90, 31.15],
+  "sentinel2_tile": "44TMQ",
+  "pre_image_date": "2025-07-25",
+  "post_image_date": "2025-08-10",
+  "data_sources": [
+    {
+      "name": "Copernicus Sentinel-2 L2A",
+      "type": "optical_imagery",
+      "url": "https://browser.dataspace.copernicus.eu/",
+      "format": "JP2/GeoTIFF 10m",
+      "license": "Copernicus Free and Open Data Policy",
+      "has_damage_labels": false
+    },
+    {
+      "name": "NRSC Cartosat-2S Damage Bulletin",
+      "type": "disaster_maps",
+      "url": "https://bhuvan-app1.nrsc.gov.in/bhuvandisaster/",
+      "format": "PDF/GeoTIFF overview",
+      "license": "ISRO/GoI Open Data Policy",
+      "has_damage_labels": false,
+      "notes": "20-hectare debris fan mapped at Kheer Ganga-Bhagirathi confluence"
+    },
+    {
+      "name": "Google Open Buildings V3",
+      "type": "building_footprints",
+      "url": "https://sites.research.google/open-buildings/",
+      "format": "CSV/GeoParquet",
+      "license": "CC-BY-4.0",
+      "has_damage_labels": false
+    }
+  ],
+  "label_availability": "WEAK_INFERENCE_ONLY",
+  "notes": "Primary use as cross-event generalisation test scenario. No verified building damage labels - use overlay inference only."
+}

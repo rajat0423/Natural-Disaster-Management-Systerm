@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import api from '../services/api';
 
@@ -39,6 +40,8 @@ const PRIORITY_COLORS = {
 };
 
 function DisasterMap() {
+  const { scenarioId: urlScenarioId } = useParams();
+  const navigate = useNavigate();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layerGroupsRef = useRef({
@@ -49,6 +52,7 @@ function DisasterMap() {
     roads: L.layerGroup(),
     hospitals: L.layerGroup(),
     shelters: L.layerGroup(),
+    hazardZones: L.layerGroup(),
     routeGlow: L.layerGroup(),
     route: L.layerGroup(),
     routeMarkers: L.layerGroup(),
@@ -57,7 +61,7 @@ function DisasterMap() {
 
   // State
   const [scenarios, setScenarios] = useState([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState(1);
+  const [selectedScenarioId, setSelectedScenarioId] = useState(urlScenarioId ? parseInt(urlScenarioId) : 1);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [routingLoading, setRoutingLoading] = useState(false);

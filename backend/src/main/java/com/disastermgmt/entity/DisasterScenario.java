@@ -48,6 +48,18 @@ public class DisasterScenario {
     @Column(name = "is_demo")
     private Boolean isDemo;
 
+    private String state;
+    private String district;
+
+    @Column(columnDefinition = "varchar(100) default 'India'")
+    private String country = "India";
+
+    @Column(name = "disaster_subtype")
+    private String disasterSubtype;
+
+    @Column(name = "data_provenance", columnDefinition = "TEXT")
+    private String dataProvenance;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -109,4 +121,19 @@ public class DisasterScenario {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getDistrict() { return district; }
+    public void setDistrict(String district) { this.district = district; }
+
+    public String getCountry() { return country; }
+    public void setCountry(String country) { this.country = country; }
+
+    public String getDisasterSubtype() { return disasterSubtype; }
+    public void setDisasterSubtype(String disasterSubtype) { this.disasterSubtype = disasterSubtype; }
+
+    public String getDataProvenance() { return dataProvenance; }
+    public void setDataProvenance(String dataProvenance) { this.dataProvenance = dataProvenance; }
 }

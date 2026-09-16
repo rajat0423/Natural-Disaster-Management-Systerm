@@ -30,7 +30,26 @@ public class MapLayerService {
     @Autowired
     private DamagePredictionRepository damagePredictionRepository;
 
+    @Autowired
+    private HazardZoneRepository hazardZoneRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public GeoJsonFeatureCollection getHazardZonesGeoJson(Long scenarioId) {
+        List<HazardZone> zones = hazardZoneRepository.findByScenarioId(scenarioId);
+        List<GeoJsonFeature> features = zones.stream().map(z -> {
+            Map<String, Object> props = new LinkedHashMap<>();
+            props.put("id", z.getId());
+            props.put("scenarioId", z.getScenarioId());
+            props.put("hazardType", z.getHazardType());
+            props.put("severity", z.getSeverity());
+            props.put("description", z.getDescription());
+            props.put("source", z.getSource());
+            return new GeoJsonFeature(z.getId(), z.getGeometry(), props);
+        }).collect(Collectors.toList());
+
+        return new GeoJsonFeatureCollection(features);
+    }
 
     public GeoJsonFeatureCollection getBuildingsGeoJson(Long scenarioId) {
         List<Building> buildings = buildingRepository.findByScenarioId(scenarioId);
