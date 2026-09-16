@@ -16,14 +16,18 @@ SCENARIOS = {
 
 def query_overpass(query_str):
     retries = 3
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'DRAS-DisasterManagement/2.0 (academic research project)'
+    }
     for attempt in range(retries):
         try:
-            response = requests.post(OVERPASS_URL, data={'data': query_str})
+            response = requests.post(OVERPASS_URL, data={'data': query_str}, headers=headers, timeout=60)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Error querying Overpass API: {e}. Retrying {attempt + 1}/{retries}...")
-            time.sleep(5)
+            time.sleep(10 * (attempt + 1))
     return None
 
 def main():
