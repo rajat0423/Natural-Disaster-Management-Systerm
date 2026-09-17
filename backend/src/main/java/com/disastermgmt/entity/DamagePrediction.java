@@ -63,6 +63,12 @@ public class DamagePrediction {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "label_source")
+    private String labelSource;
+
+    @Column(name = "label_confidence")
+    private Double labelConfidence;
+
     public DamagePrediction() {}
 
     @PrePersist
@@ -124,4 +130,10 @@ public class DamagePrediction {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getLabelSource() { return labelSource; }
+    public void setLabelSource(String labelSource) { this.labelSource = labelSource; }
+
+    public Double getLabelConfidence() { return labelConfidence; }
+    public void setLabelConfidence(Double labelConfidence) { this.labelConfidence = labelConfidence; }
 }

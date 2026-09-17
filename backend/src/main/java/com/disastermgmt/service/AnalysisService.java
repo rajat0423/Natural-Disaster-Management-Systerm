@@ -46,7 +46,7 @@ public class AnalysisService {
         int importedCount = 0;
 
         for (GeoJsonFeature feat : featureCollection.getFeatures()) {
-            Geometry geom = feat.getGeometry();
+            Geometry geom = feat.getJtsGeometry();
             if (geom == null || !geom.isValid() || geom.isEmpty()) {
                 continue;
             }

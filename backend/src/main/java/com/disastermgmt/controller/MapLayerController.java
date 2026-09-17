@@ -9,42 +9,78 @@ import org.springframework.web.bind.annotation.*;
 /**
  * MAP LAYER CONTROLLER
  *
- * REST Endpoints returning GeoJSON FeatureCollections for GIS visualization:
- *   GET /api/map/buildings?scenarioId={id}
- *   GET /api/map/roads?scenarioId={id}
- *   GET /api/map/hospitals?scenarioId={id}
- *   GET /api/map/shelters?scenarioId={id}
- *   GET /api/map/damages?scenarioId={id}
+ * REST Endpoints returning GeoJSON FeatureCollections for GIS visualization.
+ * Supports both /api/map and /api/map-layers prefixes, and both ?scenarioId= query param
+ * and /{scenarioId} path variable for maximum client compatibility.
  */
 @RestController
-@RequestMapping("/api/map")
+@RequestMapping({"/api/map", "/api/map-layers"})
+@CrossOrigin(origins = "*")
 public class MapLayerController {
 
     @Autowired
     private MapLayerService mapLayerService;
 
-    @GetMapping("/buildings")
-    public ResponseEntity<GeoJsonFeatureCollection> getBuildings(@RequestParam Long scenarioId) {
-        return ResponseEntity.ok(mapLayerService.getBuildingsGeoJson(scenarioId));
+    // --- Buildings ---
+    @GetMapping({"/buildings", "/buildings/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getBuildings(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getBuildingsGeoJson(id));
     }
 
-    @GetMapping("/roads")
-    public ResponseEntity<GeoJsonFeatureCollection> getRoads(@RequestParam Long scenarioId) {
-        return ResponseEntity.ok(mapLayerService.getRoadsGeoJson(scenarioId));
+    // --- Roads ---
+    @GetMapping({"/roads", "/roads/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getRoads(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getRoadsGeoJson(id));
     }
 
-    @GetMapping("/hospitals")
-    public ResponseEntity<GeoJsonFeatureCollection> getHospitals(@RequestParam Long scenarioId) {
-        return ResponseEntity.ok(mapLayerService.getHospitalsGeoJson(scenarioId));
+    // --- Hospitals ---
+    @GetMapping({"/hospitals", "/hospitals/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getHospitals(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getHospitalsGeoJson(id));
     }
 
-    @GetMapping("/shelters")
-    public ResponseEntity<GeoJsonFeatureCollection> getShelters(@RequestParam Long scenarioId) {
-        return ResponseEntity.ok(mapLayerService.getSheltersGeoJson(scenarioId));
+    // --- Shelters ---
+    @GetMapping({"/shelters", "/shelters/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getShelters(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getSheltersGeoJson(id));
     }
 
-    @GetMapping("/damages")
-    public ResponseEntity<GeoJsonFeatureCollection> getDamages(@RequestParam Long scenarioId) {
-        return ResponseEntity.ok(mapLayerService.getDamageGeoJson(scenarioId));
+    // --- Damages ---
+    @GetMapping({"/damages", "/damages/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getDamages(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getDamageGeoJson(id));
+    }
+
+    // --- Hazards ---
+    @GetMapping({"/hazards", "/hazards/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getHazards(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getHazardZonesGeoJson(id));
+    }
+
+    // --- Boundary ---
+    @GetMapping({"/boundary", "/boundary/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getBoundary(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getBoundaryGeoJson(id));
     }
 }

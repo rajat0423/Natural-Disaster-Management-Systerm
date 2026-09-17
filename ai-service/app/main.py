@@ -6,7 +6,7 @@ FastAPI AI Service — Main Entry Point
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import health, cv, routing
+from app.api import health, cv, routing, evaluation
 
 app = FastAPI(
     title="Disaster Management AI Service",
@@ -31,3 +31,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(cv.router)
 app.include_router(routing.router)
+app.include_router(evaluation.router)

@@ -39,6 +39,15 @@ public class Road {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "hazard_level")
+    private String hazardLevel;
+
+    @Column(name = "accessibility_cost")
+    private Double accessibilityCost = 1.0;
+
+    @Column(name = "road_type")
+    private String roadType;
+
     public Road() {}
 
     @PrePersist
@@ -78,4 +87,13 @@ public class Road {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getHazardLevel() { return hazardLevel; }
+    public void setHazardLevel(String hazardLevel) { this.hazardLevel = hazardLevel; }
+
+    public Double getAccessibilityCost() { return accessibilityCost; }
+    public void setAccessibilityCost(Double accessibilityCost) { this.accessibilityCost = accessibilityCost; }
+
+    public String getRoadType() { return roadType; }
+    public void setRoadType(String roadType) { this.roadType = roadType; }
 }

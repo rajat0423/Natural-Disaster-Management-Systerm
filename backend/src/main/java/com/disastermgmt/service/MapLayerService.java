@@ -33,6 +33,9 @@ public class MapLayerService {
     @Autowired
     private HazardZoneRepository hazardZoneRepository;
 
+    @Autowired
+    private DisasterScenarioRepository disasterScenarioRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GeoJsonFeatureCollection getHazardZonesGeoJson(Long scenarioId) {
@@ -164,6 +167,20 @@ public class MapLayerService {
             return new GeoJsonFeature(d.getId(), d.getGeometry(), props);
         }).collect(Collectors.toList());
 
+        return new GeoJsonFeatureCollection(features);
+    }
+
+    public GeoJsonFeatureCollection getBoundaryGeoJson(Long scenarioId) {
+        Optional<DisasterScenario> scOpt = disasterScenarioRepository.findById(scenarioId);
+        List<GeoJsonFeature> features = new ArrayList<>();
+        if (scOpt.isPresent() && scOpt.get().getBoundary() != null) {
+            DisasterScenario sc = scOpt.get();
+            Map<String, Object> props = new LinkedHashMap<>();
+            props.put("id", sc.getId());
+            props.put("name", sc.getName());
+            props.put("disasterType", sc.getDisasterType());
+            features.add(new GeoJsonFeature(sc.getId(), sc.getBoundary(), props));
+        }
         return new GeoJsonFeatureCollection(features);
     }
 }

@@ -53,19 +53,27 @@ def health_check():
 def model_info():
     """
     Report what AI capabilities are available.
-
-    This tells the backend:
-    - Is PyTorch available?
-    - Is a GPU available? (probably not on your machine)
-    - What Python version is running?
-    - Is a model loaded? (not yet in Milestone 1)
-
-    Later milestones will add actual model details here.
     """
+    import os
+    models_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
+    available_weights = []
+    if os.path.exists(models_dir):
+        for f in os.listdir(models_dir):
+            if f.endswith('.pth'):
+                fpath = os.path.join(models_dir, f)
+                available_weights.append({
+                    "filename": f,
+                    "size_mb": round(os.path.getsize(fpath) / 1e6, 1)
+                })
+
     return {
-        "model_loaded": False,
-        "model_name": None,
-        "model_version": None,
+        "model_loaded": len(available_weights) > 0,
+        "model_name": "U-Net ResNet34 (xBD Baseline)",
+        "model_version": "v1.0-xbd-baseline",
+        "architecture": "segmentation_models_pytorch U-Net + ResNet34 encoder",
+        "parameters": 24_446_357,
+        "num_classes": 5,
+        "available_weights": available_weights,
         "pytorch_version": torch.__version__,
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "cuda_available": torch.cuda.is_available(),
