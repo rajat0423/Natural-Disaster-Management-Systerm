@@ -129,5 +129,8 @@ models/baseline/*.pth
 
 # === Training Outputs ===
 outputs/india_*/
+!outputs/india_evaluation/
+outputs/india_evaluation/*
+!outputs/india_evaluation/*.json
 outputs/training_logs/
 outputs/evaluation_results_india*.json

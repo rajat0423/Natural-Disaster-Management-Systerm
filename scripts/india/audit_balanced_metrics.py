@@ -209,7 +209,7 @@ def audit_all_experiments():
     res3b_actual["damaged_precision"] = round(24 / (24 + 504), 4)
     res3b_actual["damaged_f1"] = round(2 * 0.0455 * 0.75 / (0.0455 + 0.75), 4)
     res3b_actual["minority_f1"] = res3b_actual["damaged_f1"]
-    res3b_actual["headline_warning"] = "98.98% is the all-intact baseline that detects ZERO damaged buildings. Model achieves 75.0% damaged recall (24/32) with 83.08% balanced accuracy."
+    res3b_actual["headline_warning"] = "98.98% is the all-intact baseline that detects ZERO damaged buildings. Model achieves 75.0% damaged recall (24/32) with 83.56% balanced accuracy."
     
     results["experiment_3b_chamoli_footprints"] = {
         "dataset": "NERC EIDC Westoby et al. (2023) Building Footprints (6,455 polygons)",
@@ -300,7 +300,7 @@ def print_comprehensive_summary(results):
     print(f"  * Actual Model Footprint Detection: Damaged Detected = {act['damaged_detected']}/{act['total_damaged']} ({act['damaged_recall']*100:.1f}% Recall)")
     print(f"  * Actual Damaged Precision: {act['damaged_precision']*100:.2f}% | Damaged F1: {act['damaged_f1']*100:.2f}%")
     print(f"  * Actual Balanced Accuracy: {act['balanced_accuracy']*100:.2f}% | Overall Accuracy: {act['raw_accuracy']*100:.2f}%")
-    print("  * VERDICT: 98.98% IS DEPRECATED AS A HEADLINE METRIC. Damaged Recall (75.0%) and Balanced Accuracy (83.08%) are primary.")
+    print("  * VERDICT: 98.98% IS DEPRECATED AS A HEADLINE METRIC. Damaged Recall (75.0%) and Balanced Accuracy (83.56%) are primary.")
 
     # 166 Manual Annotations Audit
     print("\n" + "-" * 80)

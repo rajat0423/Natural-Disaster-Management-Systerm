@@ -877,21 +877,22 @@ function DisasterMap() {
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: tokens.bgPrimary, color: tokens.textPrimary, overflow: 'hidden' }}>
       
       {/* ============================================================ */}
       {/* LEFT COLUMN: Controls, Phases & Layer Toggles (270px)        */}
       {/* ============================================================ */}
       <div style={{
         width: '270px',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid #e2e8f0',
+        backgroundColor: tokens.bgSecondary,
+        borderRight: `1px solid ${tokens.border}`,
         padding: '14px',
         overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
         gap: '14px',
-        zIndex: 10
+        zIndex: 10,
+        color: tokens.textPrimary
       }}>
         
         {/* Scenario Selector */}
@@ -909,11 +910,11 @@ function DisasterMap() {
               width: '100%',
               padding: '6px 8px',
               borderRadius: '6px',
-              border: '1px solid #cbd5e1',
+              border: `1px solid ${tokens.inputBorder || tokens.border}`,
               fontSize: '11px',
               fontWeight: 600,
-              color: '#0f172a',
-              backgroundColor: '#f8fafc'
+              color: tokens.textPrimary,
+              backgroundColor: tokens.inputBg || tokens.bgTertiary
             }}
           >
             {scenarios.map(s => (
@@ -924,18 +925,18 @@ function DisasterMap() {
 
         {/* Spatial View Mode: [ Buildings ] [ Zones ] [ Both ] */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
             Spatial View Mode
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '3px', backgroundColor: '#f1f5f9', padding: '3px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '3px', backgroundColor: tokens.bgTertiary, padding: '3px', borderRadius: '6px', border: `1px solid ${tokens.border}` }}>
             <button
               onClick={() => setViewLevel('BUILDINGS')}
               style={{
                 padding: '6px 2px',
                 borderRadius: '4px',
                 border: 'none',
-                backgroundColor: viewLevel === 'BUILDINGS' ? '#0f172a' : 'transparent',
-                color: viewLevel === 'BUILDINGS' ? '#ffffff' : '#64748b',
+                backgroundColor: viewLevel === 'BUILDINGS' ? (isDark ? '#0284c7' : '#0f172a') : 'transparent',
+                color: viewLevel === 'BUILDINGS' ? '#ffffff' : tokens.textSecondary,
                 fontSize: '10px',
                 fontWeight: 700,
                 cursor: 'pointer'
@@ -949,8 +950,8 @@ function DisasterMap() {
                 padding: '6px 2px',
                 borderRadius: '4px',
                 border: 'none',
-                backgroundColor: viewLevel === 'ZONES' ? '#0f172a' : 'transparent',
-                color: viewLevel === 'ZONES' ? '#ffffff' : '#64748b',
+                backgroundColor: viewLevel === 'ZONES' ? (isDark ? '#0284c7' : '#0f172a') : 'transparent',
+                color: viewLevel === 'ZONES' ? '#ffffff' : tokens.textSecondary,
                 fontSize: '10px',
                 fontWeight: 700,
                 cursor: 'pointer'
@@ -964,8 +965,8 @@ function DisasterMap() {
                 padding: '6px 2px',
                 borderRadius: '4px',
                 border: 'none',
-                backgroundColor: viewLevel === 'BOTH' ? '#0f172a' : 'transparent',
-                color: viewLevel === 'BOTH' ? '#ffffff' : '#64748b',
+                backgroundColor: viewLevel === 'BOTH' ? (isDark ? '#0284c7' : '#0f172a') : 'transparent',
+                color: viewLevel === 'BOTH' ? '#ffffff' : tokens.textSecondary,
                 fontSize: '10px',
                 fontWeight: 700,
                 cursor: 'pointer'
@@ -978,7 +979,7 @@ function DisasterMap() {
 
         {/* 3-Step Conceptual Workflow: 01 ASSESS / 02 PRIORITISE / 03 RESPOND */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
             Operational Phase
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -988,9 +989,9 @@ function DisasterMap() {
                 padding: '8px 10px',
                 borderRadius: '6px',
                 border: '1px solid',
-                borderColor: mapMode === 'DAMAGE' ? '#0f172a' : '#e2e8f0',
-                backgroundColor: mapMode === 'DAMAGE' ? '#0f172a' : '#ffffff',
-                color: mapMode === 'DAMAGE' ? '#ffffff' : '#334155',
+                borderColor: mapMode === 'DAMAGE' ? (isDark ? '#38bdf8' : '#0f172a') : tokens.border,
+                backgroundColor: mapMode === 'DAMAGE' ? (isDark ? '#1e3a8a' : '#0f172a') : tokens.bgCard,
+                color: mapMode === 'DAMAGE' ? '#ffffff' : tokens.textPrimary,
                 fontSize: '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -1000,7 +1001,7 @@ function DisasterMap() {
                 gap: '8px'
               }}
             >
-              <span style={{ backgroundColor: mapMode === 'DAMAGE' ? '#334155' : '#f1f5f9', color: mapMode === 'DAMAGE' ? '#fff' : '#64748b', fontSize: '9px', padding: '2px 5px', borderRadius: '3px' }}>
+              <span style={{ backgroundColor: mapMode === 'DAMAGE' ? (isDark ? '#2563eb' : '#334155') : tokens.bgTertiary, color: mapMode === 'DAMAGE' ? '#fff' : tokens.textSecondary, fontSize: '9px', padding: '2px 5px', borderRadius: '3px' }}>
                 01
               </span>
               <span><strong>ASSESS</strong> — Damage Assessment</span>
@@ -1012,9 +1013,9 @@ function DisasterMap() {
                 padding: '8px 10px',
                 borderRadius: '6px',
                 border: '1px solid',
-                borderColor: mapMode === 'PRIORITY' ? '#0f172a' : '#e2e8f0',
-                backgroundColor: mapMode === 'PRIORITY' ? '#0f172a' : '#ffffff',
-                color: mapMode === 'PRIORITY' ? '#ffffff' : '#334155',
+                borderColor: mapMode === 'PRIORITY' ? (isDark ? '#38bdf8' : '#0f172a') : tokens.border,
+                backgroundColor: mapMode === 'PRIORITY' ? (isDark ? '#1e3a8a' : '#0f172a') : tokens.bgCard,
+                color: mapMode === 'PRIORITY' ? '#ffffff' : tokens.textPrimary,
                 fontSize: '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -1024,7 +1025,7 @@ function DisasterMap() {
                 gap: '8px'
               }}
             >
-              <span style={{ backgroundColor: mapMode === 'PRIORITY' ? '#334155' : '#f1f5f9', color: mapMode === 'PRIORITY' ? '#fff' : '#64748b', fontSize: '9px', padding: '2px 5px', borderRadius: '3px' }}>
+              <span style={{ backgroundColor: mapMode === 'PRIORITY' ? (isDark ? '#2563eb' : '#334155') : tokens.bgTertiary, color: mapMode === 'PRIORITY' ? '#fff' : tokens.textSecondary, fontSize: '9px', padding: '2px 5px', borderRadius: '3px' }}>
                 02
               </span>
               <span><strong>PRIORITISE</strong> — Impact & Triage</span>
@@ -1036,9 +1037,9 @@ function DisasterMap() {
                 padding: '8px 10px',
                 borderRadius: '6px',
                 border: '1px solid',
-                borderColor: mapMode === 'ROUTING' ? '#0f172a' : '#e2e8f0',
-                backgroundColor: mapMode === 'ROUTING' ? '#0f172a' : '#ffffff',
-                color: mapMode === 'ROUTING' ? '#ffffff' : '#334155',
+                borderColor: mapMode === 'ROUTING' ? (isDark ? '#38bdf8' : '#0f172a') : tokens.border,
+                backgroundColor: mapMode === 'ROUTING' ? (isDark ? '#1e3a8a' : '#0f172a') : tokens.bgCard,
+                color: mapMode === 'ROUTING' ? '#ffffff' : tokens.textPrimary,
                 fontSize: '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -1048,7 +1049,7 @@ function DisasterMap() {
                 gap: '8px'
               }}
             >
-              <span style={{ backgroundColor: mapMode === 'ROUTING' ? '#334155' : '#f1f5f9', color: mapMode === 'ROUTING' ? '#fff' : '#64748b', fontSize: '9px', padding: '2px 5px', borderRadius: '3px' }}>
+              <span style={{ backgroundColor: mapMode === 'ROUTING' ? (isDark ? '#2563eb' : '#334155') : tokens.bgTertiary, color: mapMode === 'ROUTING' ? '#fff' : tokens.textSecondary, fontSize: '9px', padding: '2px 5px', borderRadius: '3px' }}>
                 03
               </span>
               <span><strong>RESPOND</strong> — Response & Routing</span>
@@ -1058,8 +1059,8 @@ function DisasterMap() {
 
         {/* Phase 03: Response Mode Route Type Selector */}
         {mapMode === 'ROUTING' && (
-          <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ backgroundColor: tokens.bgTertiary, padding: '10px', borderRadius: '6px', border: `1px solid ${tokens.border}` }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textPrimary, textTransform: 'uppercase', marginBottom: '6px' }}>
               Route Type
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px' }}>
@@ -1071,7 +1072,7 @@ function DisasterMap() {
                   checked={responseRouteType === 'RESPONSE'}
                   onChange={() => { setResponseRouteType('RESPONSE'); if (selectedBuilding) calculateRoute('RESPONSE'); }}
                 />
-                <span style={{ fontWeight: responseRouteType === 'RESPONSE' ? 700 : 500, color: responseRouteType === 'RESPONSE' ? '#d97706' : '#334155' }}>
+                <span style={{ fontWeight: responseRouteType === 'RESPONSE' ? 700 : 500, color: responseRouteType === 'RESPONSE' ? '#d97706' : tokens.textSecondary }}>
                   Response Access (Staging → Site)
                 </span>
               </label>
@@ -1084,14 +1085,14 @@ function DisasterMap() {
                   checked={responseRouteType === 'EVACUATION'}
                   onChange={() => { setResponseRouteType('EVACUATION'); if (selectedBuilding) calculateRoute('EVACUATION'); }}
                 />
-                <span style={{ fontWeight: responseRouteType === 'EVACUATION' ? 700 : 500, color: responseRouteType === 'EVACUATION' ? '#0284c7' : '#334155' }}>
+                <span style={{ fontWeight: responseRouteType === 'EVACUATION' ? 700 : 500, color: responseRouteType === 'EVACUATION' ? '#0284c7' : tokens.textSecondary }}>
                   Evacuation (Site → Facility)
                 </span>
               </label>
             </div>
 
             {responseRouteType === 'EVACUATION' && (
-              <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '4px' }}>
+              <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: `1px solid ${tokens.border}`, display: 'flex', gap: '4px' }}>
                 <button
                   onClick={() => { setEvacDestType('hospital'); if (selectedBuilding) calculateRoute('EVACUATION', 'hospital'); }}
                   style={{
@@ -1101,9 +1102,9 @@ function DisasterMap() {
                     fontWeight: 700,
                     borderRadius: '3px',
                     border: '1px solid',
-                    borderColor: evacDestType === 'hospital' ? '#dc2626' : '#cbd5e1',
-                    backgroundColor: evacDestType === 'hospital' ? '#dc2626' : '#fff',
-                    color: evacDestType === 'hospital' ? '#fff' : '#334155',
+                    borderColor: evacDestType === 'hospital' ? '#dc2626' : tokens.border,
+                    backgroundColor: evacDestType === 'hospital' ? '#dc2626' : tokens.bgCard,
+                    color: evacDestType === 'hospital' ? '#fff' : tokens.textPrimary,
                     cursor: 'pointer'
                   }}
                 >
@@ -1118,9 +1119,9 @@ function DisasterMap() {
                     fontWeight: 700,
                     borderRadius: '3px',
                     border: '1px solid',
-                    borderColor: evacDestType === 'shelter' ? '#0284c7' : '#cbd5e1',
-                    backgroundColor: evacDestType === 'shelter' ? '#0284c7' : '#fff',
-                    color: evacDestType === 'shelter' ? '#fff' : '#334155',
+                    borderColor: evacDestType === 'shelter' ? '#0284c7' : tokens.border,
+                    backgroundColor: evacDestType === 'shelter' ? '#0284c7' : tokens.bgCard,
+                    color: evacDestType === 'shelter' ? '#fff' : tokens.textPrimary,
                     cursor: 'pointer'
                   }}
                 >
@@ -1133,8 +1134,8 @@ function DisasterMap() {
 
         {/* Dynamic Filters */}
         {mapMode === 'DAMAGE' && (
-          <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ backgroundColor: tokens.bgTertiary, padding: '10px', borderRadius: '6px', border: `1px solid ${tokens.border}` }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', marginBottom: '6px' }}>
               Severity Filter
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '8px' }}>
@@ -1146,9 +1147,9 @@ function DisasterMap() {
                     padding: '3px 5px',
                     borderRadius: '4px',
                     border: '1px solid',
-                    borderColor: damageFilter === cat ? '#0f172a' : '#cbd5e1',
-                    backgroundColor: damageFilter === cat ? '#0f172a' : '#fff',
-                    color: damageFilter === cat ? '#fff' : '#334155',
+                    borderColor: damageFilter === cat ? (isDark ? '#38bdf8' : '#0f172a') : tokens.border,
+                    backgroundColor: damageFilter === cat ? (isDark ? '#0284c7' : '#0f172a') : tokens.bgCard,
+                    color: damageFilter === cat ? '#fff' : tokens.textPrimary,
                     fontSize: '9px',
                     fontWeight: 600,
                     cursor: 'pointer'
@@ -1159,8 +1160,8 @@ function DisasterMap() {
               ))}
             </div>
 
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>
-              Confidence: <strong>{(confidenceThreshold * 100).toFixed(0)}%</strong>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: tokens.textSecondary, marginBottom: '2px' }}>
+              Confidence: <strong style={{ color: tokens.textPrimary }}>{(confidenceThreshold * 100).toFixed(0)}%</strong>
             </div>
             <input
               type="range"
@@ -1175,8 +1176,8 @@ function DisasterMap() {
         )}
 
         {mapMode === 'PRIORITY' && (
-          <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ backgroundColor: tokens.bgTertiary, padding: '10px', borderRadius: '6px', border: `1px solid ${tokens.border}` }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', marginBottom: '6px' }}>
               Priority Urgency Filter
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
@@ -1188,9 +1189,9 @@ function DisasterMap() {
                     padding: '3px 5px',
                     borderRadius: '4px',
                     border: '1px solid',
-                    borderColor: priorityFilter === lvl ? PRIORITY_COLORS[lvl] || '#0f172a' : '#cbd5e1',
-                    backgroundColor: priorityFilter === lvl ? PRIORITY_COLORS[lvl] || '#0f172a' : '#fff',
-                    color: priorityFilter === lvl ? '#fff' : '#334155',
+                    borderColor: priorityFilter === lvl ? PRIORITY_COLORS[lvl] || '#0f172a' : tokens.border,
+                    backgroundColor: priorityFilter === lvl ? PRIORITY_COLORS[lvl] || '#0f172a' : tokens.bgCard,
+                    color: priorityFilter === lvl ? '#fff' : tokens.textPrimary,
                     fontSize: '9px',
                     fontWeight: 700,
                     cursor: 'pointer'
@@ -1205,38 +1206,10 @@ function DisasterMap() {
 
         {/* Layer Toggles */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
             Map Layers
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '11px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <input
-                  type="checkbox"
-                  checked={layers.zones}
-                  onChange={(e) => setLayers({ ...layers, zones: e.target.checked })}
-                />
-                <span style={{ fontWeight: 600, color: '#0f172a' }}>Operational Zones</span>
-              </span>
-              <span style={{ fontSize: '9px', fontWeight: 700, color: '#0284c7' }}>
-                {rawDataRef.current.zones?.features?.length || 0}
-              </span>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <input
-                  type="checkbox"
-                  checked={layers.damages}
-                  onChange={(e) => setLayers({ ...layers, damages: e.target.checked })}
-                />
-                <span>Damage Polygons</span>
-              </span>
-              <span style={{ fontSize: '9px', fontWeight: 600, color: '#64748b' }}>
-                {rawDataRef.current.damages?.features?.length || 0}
-              </span>
-            </label>
-
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: tokens.textPrimary }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <input
@@ -1272,7 +1245,7 @@ function DisasterMap() {
                   checked={layers.damages}
                   onChange={(e) => setLayers({ ...layers, damages: e.target.checked })}
                 />
-                <span>Damage Assessment</span>
+                <span>{selectedScenarioId === 3 ? 'Point Damage Grading' : 'Damage Assessment'}</span>
               </span>
               <span style={{ fontSize: '9px', fontWeight: 600, color: tokens.textSecondary }}>
                 {rawDataRef.current.damages?.features?.length || 0}
