@@ -34,6 +34,9 @@ public class MapLayerService {
     private HazardZoneRepository hazardZoneRepository;
 
     @Autowired
+    private OperationalZoneRepository operationalZoneRepository;
+
+    @Autowired
     private DisasterScenarioRepository disasterScenarioRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -183,4 +186,43 @@ public class MapLayerService {
         }
         return new GeoJsonFeatureCollection(features);
     }
+
+    public GeoJsonFeatureCollection getOperationalZonesGeoJson(Long scenarioId) {
+        List<OperationalZone> zones = operationalZoneRepository.findByScenarioIdOrderByCriticalityScoreDesc(scenarioId);
+        List<GeoJsonFeature> features = zones.stream().map(z -> {
+            Map<String, Object> props = new LinkedHashMap<>();
+            props.put("id", z.getId());
+            props.put("scenarioId", z.getScenarioId());
+            props.put("zoneCode", z.getZoneCode());
+            props.put("name", z.getName());
+            props.put("criticality", z.getCriticality());
+            props.put("criticalityScore", z.getCriticalityScore());
+            props.put("totalBuildings", z.getTotalBuildings());
+            props.put("destroyedCount", z.getDestroyedCount());
+            props.put("majorDamageCount", z.getMajorDamageCount());
+            props.put("minorDamageCount", z.getMinorDamageCount());
+            props.put("noDamageCount", z.getNoDamageCount());
+            props.put("estimatedPopulation", z.getEstimatedPopulation());
+            props.put("avgPriorityScore", z.getAvgPriorityScore());
+            props.put("hospitalsCount", z.getHospitalsCount());
+            props.put("sheltersCount", z.getSheltersCount());
+            props.put("blockedRoadsCount", z.getBlockedRoadsCount());
+            props.put("highestPriorityBuildingId", z.getHighestPriorityBuildingId());
+            props.put("recommendedAction", z.getRecommendedAction());
+            props.put("explanation", z.getExplanation());
+            if (z.getConstituentBuildingIds() != null) {
+                try {
+                    props.put("constituentBuildingIds", objectMapper.readValue(z.getConstituentBuildingIds(), new TypeReference<List<Long>>() {}));
+                } catch (Exception e) {
+                    props.put("constituentBuildingIds", Collections.emptyList());
+                }
+            } else {
+                props.put("constituentBuildingIds", Collections.emptyList());
+            }
+            return new GeoJsonFeature(z.getId(), z.getGeometry(), props);
+        }).collect(Collectors.toList());
+
+        return new GeoJsonFeatureCollection(features);
+    }
 }
+

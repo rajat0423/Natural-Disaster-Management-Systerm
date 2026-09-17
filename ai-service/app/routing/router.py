@@ -48,12 +48,12 @@ STAGING_POINTS = {
         "lon": 79.3301, "lat": 30.4100,
         "description": "Gopeshwar District EOC — primary staging for Rishiganga/Dhauliganga response."
     },
-    # Scenario 3: Wayanad 2024 — Kalpetta (District HQ)
+    # Scenario 3: Cyclone Fani 2019 — Puri (District EOC)
     3: {
-        "name": "Kalpetta Emergency Operations Center",
+        "name": "Puri Emergency Operations Center (Collectorate)",
         "type": "District Emergency Operations Center",
-        "lon": 76.0833, "lat": 11.6083,
-        "description": "Kalpetta EOC — Wayanad district response coordination for Chooralmala/Mundakkai."
+        "lon": 85.8250, "lat": 19.8150,
+        "description": "Puri District EOC / Collectorate — primary staging base for Cyclone Fani coastal response."
     },
     # Scenario 4: Dharali 2025 — Uttarkashi (District HQ)
     4: {

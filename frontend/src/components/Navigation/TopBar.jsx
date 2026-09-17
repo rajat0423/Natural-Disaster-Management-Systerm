@@ -1,13 +1,14 @@
 import React from 'react';
 import { NavLink, useLocation, useParams } from 'react-router-dom';
 import { BRANDING } from '../../config/branding';
+import { useTheme } from '../../context/ThemeContext';
 
 const TopBar = () => {
   const location = useLocation();
   const { scenarioId } = useParams();
+  const { theme, toggleTheme, isDark, tokens } = useTheme();
 
   // If we are in a scenario, determine the active scenario name
-  // Note: we can parse scenarioId from location.pathname if useParams doesn't catch it outside Routes
   const match = location.pathname.match(/\/scenario\/(\d+)/);
   const activeScenarioId = match ? parseInt(match[1]) : null;
   
@@ -23,21 +24,23 @@ const TopBar = () => {
     left: 0,
     right: 0,
     height: '56px',
-    backgroundColor: '#0f172a',
-    color: '#f8fafc',
+    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+    color: tokens.textPrimary,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '0 20px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-    zIndex: 2000, // Above leaflet map
-    fontFamily: 'sans-serif'
+    boxShadow: isDark ? '0 2px 4px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.08)',
+    borderBottom: `1px solid ${tokens.border}`,
+    zIndex: 2000,
+    fontFamily: 'sans-serif',
+    transition: 'background-color 0.2s, color 0.2s, border-color 0.2s'
   };
 
   const logoStyle = {
     fontWeight: 'bold',
     fontSize: '1.25rem',
-    color: '#f97316',
+    color: tokens.accent,
     textDecoration: 'none',
     display: 'flex',
     alignItems: 'center',
@@ -46,45 +49,52 @@ const TopBar = () => {
 
   const navContainerStyle = {
     display: 'flex',
-    gap: '20px',
+    gap: '12px',
     alignItems: 'center'
   };
 
   const getLinkStyle = ({ isActive }) => ({
-    color: isActive ? '#f97316' : '#f8fafc',
+    color: isActive ? tokens.accent : tokens.textSecondary,
+    backgroundColor: isActive ? tokens.accentSubtle : 'transparent',
     textDecoration: 'none',
-    fontWeight: isActive ? 'bold' : 'normal',
-    padding: '8px 12px',
-    borderRadius: '4px',
-    transition: 'background-color 0.2s',
+    fontWeight: isActive ? '700' : '500',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    fontSize: '0.9rem',
+    transition: 'all 0.15s ease',
   });
 
   const rightSideStyle = {
     display: 'flex',
     alignItems: 'center',
-    gap: '15px'
+    gap: '10px'
   };
 
   const badgeStyle = {
-    backgroundColor: '#1e293b',
+    backgroundColor: tokens.bgTertiary,
     padding: '4px 10px',
     borderRadius: '12px',
-    fontSize: '0.85rem',
-    color: '#94a3b8',
-    border: '1px solid #334155'
-  };
-
-  const refreshBtnStyle = {
-    background: 'transparent',
-    border: '1px solid #334155',
-    color: '#f8fafc',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
+    color: tokens.textSecondary,
+    border: `1px solid ${tokens.border}`,
     display: 'flex',
     alignItems: 'center',
-    gap: '4px'
+    gap: '5px'
+  };
+
+  const btnStyle = {
+    background: tokens.bgTertiary,
+    border: `1px solid ${tokens.border}`,
+    color: tokens.textPrimary,
+    padding: '5px 10px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.82rem',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    transition: 'all 0.15s ease'
   };
 
   return (
@@ -108,10 +118,21 @@ const TopBar = () => {
       <div style={rightSideStyle}>
         {activeScenario && (
           <div style={badgeStyle}>
-            Active: <strong>{activeScenario.name}</strong>
+            <span>Active:</span> <strong style={{ color: tokens.textPrimary }}>{activeScenario.name}</strong>
           </div>
         )}
-        <button style={refreshBtnStyle} onClick={handleRefresh}>
+        
+        {/* Theme Toggle Button */}
+        <button
+          style={btnStyle}
+          onClick={toggleTheme}
+          title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
+          aria-label="Toggle Theme"
+        >
+          {isDark ? '☀ Light' : '🌙 Dark'}
+        </button>
+
+        <button style={btnStyle} onClick={handleRefresh} title="Refresh Data">
           🔄 Refresh
         </button>
       </div>

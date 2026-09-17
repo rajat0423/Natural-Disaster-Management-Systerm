@@ -1,8 +1,8 @@
 {
-  "passed": 54,
+  "passed": 68,
   "failed": 0,
   "warnings": 0,
-  "total": 54,
+  "total": 68,
   "results": [
     {
       "test": "Backend health",
@@ -45,6 +45,14 @@
       "status": "PASS"
     },
     {
+      "test": "[1] Operational Zones GeoJSON (Backend)",
+      "status": "PASS"
+    },
+    {
+      "test": "[1] Operational Zones GeoJSON (AI Service)",
+      "status": "PASS"
+    },
+    {
       "test": "[1] Boundary/Scenario data",
       "status": "PASS"
     },
@@ -78,6 +86,14 @@
     },
     {
       "test": "[2] Shelters GeoJSON",
+      "status": "PASS"
+    },
+    {
+      "test": "[2] Operational Zones GeoJSON (Backend)",
+      "status": "PASS"
+    },
+    {
+      "test": "[2] Operational Zones GeoJSON (AI Service)",
       "status": "PASS"
     },
     {
@@ -117,6 +133,14 @@
       "status": "PASS"
     },
     {
+      "test": "[3] Operational Zones GeoJSON (Backend)",
+      "status": "PASS"
+    },
+    {
+      "test": "[3] Operational Zones GeoJSON (AI Service)",
+      "status": "PASS"
+    },
+    {
       "test": "[3] Boundary/Scenario data",
       "status": "PASS"
     },
@@ -153,6 +177,14 @@
       "status": "PASS"
     },
     {
+      "test": "[4] Operational Zones GeoJSON (Backend)",
+      "status": "PASS"
+    },
+    {
+      "test": "[4] Operational Zones GeoJSON (AI Service)",
+      "status": "PASS"
+    },
+    {
       "test": "[4] Boundary/Scenario data",
       "status": "PASS"
     },
@@ -181,11 +213,11 @@
       "status": "PASS"
     },
     {
-      "test": "Responder route (Wayanad)",
+      "test": "Responder route (Cyclone Fani)",
       "status": "PASS"
     },
     {
-      "test": "Evacuation route (Wayanad)",
+      "test": "Evacuation route (Cyclone Fani)",
       "status": "PASS"
     },
     {
@@ -205,11 +237,35 @@
       "status": "PASS"
     },
     {
+      "test": "Cross-event evaluation endpoint",
+      "status": "PASS"
+    },
+    {
       "test": "Models registry",
       "status": "PASS"
     },
     {
       "test": "Baseline metrics contain real data",
+      "status": "PASS"
+    },
+    {
+      "test": "Model registry includes verified india_tuned_v2 checkpoint",
+      "status": "PASS"
+    },
+    {
+      "test": "Cross-event evaluation returns Dharali 2025 generalisation transfer metrics",
+      "status": "PASS"
+    },
+    {
+      "test": "Data audit artifact (outputs/india_data_audit.json) verified",
+      "status": "PASS"
+    },
+    {
+      "test": "Imagery registry artifact (data/india/imagery_registry.json) verified",
+      "status": "PASS"
+    },
+    {
+      "test": "Model diagnosis report (outputs/model_diagnosis.md) verified",
       "status": "PASS"
     },
     {
@@ -221,5 +277,5 @@
       "status": "PASS"
     }
   ],
-  "timestamp": "2026-09-17T10:22:30"
+  "timestamp": "2026-09-18T00:07:11"
 }

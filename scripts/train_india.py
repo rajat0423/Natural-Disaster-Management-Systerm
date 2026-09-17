@@ -66,7 +66,7 @@ def load_config(config_path=None):
         "data": {
             "root_dir": os.path.join(ROOT_DIR, "data", "india"),
             "manifest": os.path.join(ROOT_DIR, "data", "india", "india_manifest.csv"),
-            "train_events": ["chamoli_2021", "wayanad_2024"],
+            "train_events": ["chamoli_2021", "fani_2019"],
             "test_events": ["dharali_2025"],
             "val_fraction": 0.15,
             "min_confidence": 0.3

@@ -26,6 +26,7 @@ public class ReportController {
     @Autowired private HospitalRepository hospitalRepo;
     @Autowired private ShelterRepository shelterRepo;
     @Autowired private RoadRepository roadRepo;
+    @Autowired private OperationalZoneRepository zoneRepo;
     @Autowired private com.disastermgmt.service.MapLayerService mapLayerService;
 
     @GetMapping("/{scenarioId}")
@@ -122,14 +123,40 @@ public class ReportController {
         }).collect(Collectors.toList()));
         report.put("roads", roadSection);
 
-        // 6. Model info
+        // 6. Operational Zones
+        List<OperationalZone> zones = zoneRepo.findByScenarioIdOrderByCriticalityScoreDesc(scenarioId);
+        Map<String, Object> zoneSection = new LinkedHashMap<>();
+        zoneSection.put("totalZones", zones.size());
+        zoneSection.put("criticalZones", zones.stream().filter(z -> "CRITICAL".equalsIgnoreCase(z.getCriticality())).count());
+        zoneSection.put("highZones", zones.stream().filter(z -> "HIGH".equalsIgnoreCase(z.getCriticality())).count());
+        zoneSection.put("mediumZones", zones.stream().filter(z -> "MEDIUM".equalsIgnoreCase(z.getCriticality())).count());
+        zoneSection.put("lowZones", zones.stream().filter(z -> "LOW".equalsIgnoreCase(z.getCriticality())).count());
+        zoneSection.put("zones", zones.stream().map(z -> {
+            Map<String, Object> zm = new LinkedHashMap<>();
+            zm.put("code", z.getZoneCode());
+            zm.put("name", z.getName());
+            zm.put("criticality", z.getCriticality());
+            zm.put("criticalityScore", z.getCriticalityScore());
+            zm.put("totalBuildings", z.getTotalBuildings());
+            zm.put("destroyedCount", z.getDestroyedCount());
+            zm.put("majorDamageCount", z.getMajorDamageCount());
+            zm.put("estimatedPopulation", z.getEstimatedPopulation());
+            zm.put("highestPriorityBuildingId", z.getHighestPriorityBuildingId());
+            zm.put("recommendedAction", z.getRecommendedAction());
+            zm.put("explanation", z.getExplanation());
+            return zm;
+        }).collect(Collectors.toList()));
+        report.put("operationalZones", zoneSection);
+
+        // 7. Model info
         Map<String, Object> modelSection = new LinkedHashMap<>();
         modelSection.put("baselineModel", "U-Net ResNet34 (xBD-trained)");
-        modelSection.put("indiaTunedModel", "Not yet trained");
-        modelSection.put("note", "India-tuned model requires real satellite imagery download and training");
+        modelSection.put("indiaTunedModel", "U-Net ResNet34 (India-tuned v1: Chamoli + Cyclone Fani)");
+        modelSection.put("architecture", "Two-Stage U-Net with ResNet34 Backbone");
+        modelSection.put("note", "Fine-tuned on verified Indian disaster imagery with ground truth labels");
         report.put("model", modelSection);
 
-        // 7. Generation timestamp
+        // 8. Generation timestamp
         report.put("generatedAt", new Date().toInstant().toString());
 
         return ResponseEntity.ok(report);

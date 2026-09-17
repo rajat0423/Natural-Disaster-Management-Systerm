@@ -83,4 +83,14 @@ public class MapLayerController {
         Long id = scenarioId != null ? scenarioId : scenarioIdParam;
         return ResponseEntity.ok(mapLayerService.getBoundaryGeoJson(id));
     }
+
+    // --- Operational Zones ---
+    @GetMapping({"/zones", "/zones/{scenarioId}"})
+    public ResponseEntity<GeoJsonFeatureCollection> getZones(
+            @PathVariable(required = false) Long scenarioId,
+            @RequestParam(value = "scenarioId", required = false) Long scenarioIdParam) {
+        Long id = scenarioId != null ? scenarioId : scenarioIdParam;
+        return ResponseEntity.ok(mapLayerService.getOperationalZonesGeoJson(id));
+    }
 }
+

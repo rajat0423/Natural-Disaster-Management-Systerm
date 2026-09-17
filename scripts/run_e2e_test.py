@@ -16,7 +16,7 @@ import sys
 BACKEND = "http://localhost:8081/api"
 AI_SERVICE = "http://localhost:8000"
 SCENARIOS = [1, 2, 3, 4]
-SCENARIO_NAMES = {1: "Woolsey Fire", 2: "Chamoli Flash Flood", 3: "Wayanad Landslide", 4: "Dharali Flash Flood"}
+SCENARIO_NAMES = {1: "Woolsey Fire", 2: "Chamoli Flash Flood", 3: "Cyclone Fani", 4: "Dharali Flash Flood"}
 
 passed = 0
 failed = 0
@@ -122,6 +122,24 @@ def run_tests():
             return True if len(features) > 0 else f"No shelter features"
         test(f"[{sid}] Shelters GeoJSON", test_shelters)
 
+        # Map layers: operational zones (Backend)
+        def test_zones(sid=sid):
+            r = requests.get(f"{BACKEND}/map/zones", params={"scenarioId": sid}, timeout=10)
+            if r.status_code != 200:
+                return f"HTTP {r.status_code}"
+            features = r.json().get("features", [])
+            return True if len(features) > 0 else f"No operational zone features"
+        test(f"[{sid}] Operational Zones GeoJSON (Backend)", test_zones)
+
+        # Map layers: operational zones (AI Service)
+        def test_ai_zones(sid=sid):
+            r = requests.get(f"{AI_SERVICE}/api/zones", params={"scenario_id": sid}, timeout=10)
+            if r.status_code != 200:
+                return f"HTTP {r.status_code}"
+            features = r.json().get("features", [])
+            return True if len(features) > 0 else f"No AI zone features"
+        test(f"[{sid}] Operational Zones GeoJSON (AI Service)", test_ai_zones)
+
         # Scenario boundary
         def test_boundary(sid=sid):
             r = requests.get(f"{BACKEND}/scenarios/{sid}", timeout=10)
@@ -197,26 +215,26 @@ def run_tests():
         return True if data.get("success") else "WARN"
     test("Evacuation route (Chamoli)", test_chamoli_evac)
 
-    # 3. Wayanad Landslide (Indian Scenario)
-    def test_wayanad_responder():
+    # 3. Cyclone Fani (Indian Scenario)
+    def test_fani_responder():
         r = requests.post(f"{AI_SERVICE}/api/routing/route", json={
-            "scenario_id": 3, "origin_lon": 76.10, "origin_lat": 11.47, "route_purpose": "RESPONSE"
+            "scenario_id": 3, "origin_lon": 85.83, "origin_lat": 19.81, "route_purpose": "RESPONSE"
         }, timeout=15)
         if r.status_code != 200:
             return f"HTTP {r.status_code}: {r.text}"
         data = r.json()
         return True if data.get("success") else data.get("error", "Route failed")
-    test("Responder route (Wayanad)", test_wayanad_responder)
+    test("Responder route (Cyclone Fani)", test_fani_responder)
 
-    def test_wayanad_evac():
+    def test_fani_evac():
         r = requests.post(f"{AI_SERVICE}/api/routing/route", json={
-            "scenario_id": 3, "origin_lon": 76.10, "origin_lat": 11.47, "route_purpose": "EVACUATION"
+            "scenario_id": 3, "origin_lon": 85.83, "origin_lat": 19.81, "route_purpose": "EVACUATION"
         }, timeout=15)
         if r.status_code != 200:
             return f"HTTP {r.status_code}: {r.text}"
         data = r.json()
         return True if data.get("success") else "WARN"
-    test("Evacuation route (Wayanad)", test_wayanad_evac)
+    test("Evacuation route (Cyclone Fani)", test_fani_evac)
 
     # 4. Dharali Flash Flood (Indian Scenario)
     def test_dharali_responder():
@@ -239,10 +257,11 @@ def run_tests():
         return True if data.get("success") else "WARN"
     test("Evacuation route (Dharali)", test_dharali_evac)
 
-    # ---- EVALUATION API ----
-    print("\n--- Evaluation API ---")
+    # ---- EVALUATION & RESEARCH API ----
+    print("\n--- Evaluation & Research API ---")
     test("Baseline metrics endpoint", lambda: requests.get(f"{AI_SERVICE}/api/evaluation/baseline", timeout=5).status_code == 200)
     test("Comparison endpoint", lambda: requests.get(f"{AI_SERVICE}/api/evaluation/comparison", timeout=5).status_code == 200)
+    test("Cross-event evaluation endpoint", lambda: requests.get(f"{AI_SERVICE}/api/evaluation/cross-event", timeout=5).status_code == 200)
     test("Models registry", lambda: requests.get(f"{AI_SERVICE}/api/models", timeout=5).status_code == 200)
 
     def test_baseline_metrics():
@@ -257,6 +276,74 @@ def run_tests():
             return "No per_class metrics"
         return True
     test("Baseline metrics contain real data", test_baseline_metrics)
+
+    def test_india_v2_model_registered():
+        r = requests.get(f"{AI_SERVICE}/api/models", timeout=5)
+        data = r.json()
+        models = data.get("models", [])
+        v2 = next((m for m in models if m.get("id") == "india_tuned_v2"), None)
+        if not v2:
+            return "india_tuned_v2 not found in models registry"
+        if not v2.get("weights_exist"):
+            return "india_tuned_v2 checkpoint does not exist on disk"
+        return True
+    test("Model registry includes verified india_tuned_v2 checkpoint", test_india_v2_model_registered)
+
+    def test_cross_event_disclosure():
+        r = requests.get(f"{AI_SERVICE}/api/evaluation/cross-event", timeout=5)
+        data = r.json()
+        if data.get("test_event") != "dharali_2025":
+            return f"Expected dharali_2025, got {data.get('test_event')}"
+        if "delta_miou" not in data:
+            return "delta_miou missing from cross-event response"
+        return True
+    test("Cross-event evaluation returns Dharali 2025 generalisation transfer metrics", test_cross_event_disclosure)
+
+    # ---- INDIA-SPECIFIC SCIENTIFIC ARTIFACTS ----
+    print("\n--- Scientific Artifacts & Provenance Verification ---")
+    import os
+
+    def test_data_audit_artifact():
+        path = "outputs/india_data_audit.json"
+        if not os.path.exists(path):
+            return f"File {path} not found"
+        with open(path, "r", encoding="utf-8") as f:
+            audit = json.load(f)
+        scenarios = audit.get("scenarios", {})
+        total_datasets = sum(len(v) for v in scenarios.values())
+        if total_datasets < 6:
+            return f"Expected >= 6 audited datasets, got {total_datasets}"
+        for req in ["chamoli_2021", "fani_2019", "dharali_2025"]:
+            if req not in scenarios:
+                return f"Scenario {req} missing in data audit"
+        return True
+    test("Data audit artifact (outputs/india_data_audit.json) verified", test_data_audit_artifact)
+
+    def test_imagery_registry_artifact():
+        path = "data/india/imagery_registry.json"
+        if not os.path.exists(path):
+            return f"File {path} not found"
+        with open(path, "r", encoding="utf-8") as f:
+            registry = json.load(f)
+        scenarios = registry.get("scenarios", {})
+        for req in ["chamoli_2021", "fani_2019", "dharali_2025"]:
+            if req not in scenarios:
+                return f"Scenario {req} missing from imagery registry"
+        return True
+    test("Imagery registry artifact (data/india/imagery_registry.json) verified", test_imagery_registry_artifact)
+
+    def test_model_diagnosis_artifact():
+        path = "outputs/model_diagnosis.md"
+        if not os.path.exists(path):
+            return f"File {path} not found"
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+        if len(text) < 1000:
+            return "Diagnosis document is too short"
+        if "Physical GSD" not in text and "Class Imbalance" not in text:
+            return "Diagnosis missing key analytical sections"
+        return True
+    test("Model diagnosis report (outputs/model_diagnosis.md) verified", test_model_diagnosis_artifact)
 
     # ---- FAILURE CASES ----
     print("\n--- Failure Cases ---")

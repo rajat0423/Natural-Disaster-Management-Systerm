@@ -1,10 +1,12 @@
 import React from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { BRANDING } from '../../config/branding';
+import { useTheme } from '../../context/ThemeContext';
 
 const Breadcrumb = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isDark, tokens } = useTheme();
 
   // Don't show breadcrumbs on the landing page
   if (location.pathname === '/') return null;
@@ -17,43 +19,47 @@ const Breadcrumb = () => {
     left: 0,
     right: 0,
     height: '40px',
-    backgroundColor: '#1e293b',
-    color: '#94a3b8',
+    backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+    color: tokens.textSecondary,
     display: 'flex',
     alignItems: 'center',
     padding: '0 20px',
     zIndex: 1900,
     fontFamily: 'sans-serif',
-    fontSize: '0.9rem',
-    borderBottom: '1px solid #334155'
+    fontSize: '0.85rem',
+    borderBottom: `1px solid ${tokens.border}`,
+    transition: 'background-color 0.2s, color 0.2s, border-color 0.2s'
   };
 
   const backButtonStyle = {
-    background: 'none',
-    border: 'none',
-    color: '#f8fafc',
+    background: isDark ? '#334155' : '#e2e8f0',
+    border: `1px solid ${tokens.border}`,
+    color: tokens.textPrimary,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
     marginRight: '16px',
-    padding: '4px 8px',
-    backgroundColor: '#334155',
-    borderRadius: '4px'
+    padding: '3px 8px',
+    borderRadius: '4px',
+    fontSize: '0.82rem',
+    fontWeight: '600'
   };
 
   const linkStyle = {
-    color: '#3b82f6',
-    textDecoration: 'none'
+    color: isDark ? '#60a5fa' : '#2563eb',
+    textDecoration: 'none',
+    fontWeight: '500'
   };
 
   const textStyle = {
-    color: '#f8fafc'
+    color: tokens.textPrimary,
+    fontWeight: '600'
   };
 
   const separatorStyle = {
     margin: '0 8px',
-    color: '#64748b'
+    color: tokens.textMuted
   };
 
   const getBreadcrumbName = (path, index, paths) => {

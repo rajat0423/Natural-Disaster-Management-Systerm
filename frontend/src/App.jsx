@@ -17,12 +17,16 @@ import ResearchMetrics from './pages/ResearchMetrics';
 import ReportView from './pages/ReportView';
 import SystemHealth from './pages/SystemHealth';
 
-function App() {
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+
+function AppContent() {
+  const { tokens } = useTheme();
+
   return (
     <BrowserRouter>
       <TopBar />
       <Breadcrumb />
-      <main style={{ paddingTop: '100px', minHeight: '100vh', background: '#0f172a' }}>
+      <main style={{ paddingTop: '100px', minHeight: '100vh', background: tokens.bgPrimary, color: tokens.textPrimary, transition: 'background-color 0.2s ease, color 0.2s ease' }}>
         <Routes>
           <Route path="/" element={<LandingOverview />} />
           <Route path="/scenarios" element={<ScenarioSelector />} />
@@ -35,6 +39,14 @@ function App() {
         </Routes>
       </main>
     </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

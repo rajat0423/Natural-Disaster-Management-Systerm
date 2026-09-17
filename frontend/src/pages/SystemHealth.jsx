@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { BRANDING } from '../config/branding';
 import api, { apiService } from '../services/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useTheme } from '../context/ThemeContext';
 
 function SystemHealth() {
   const navigate = useNavigate();
+  const { tokens, isDark } = useTheme();
   const [healthData, setHealthData] = useState({
     backend: { status: 'UNKNOWN', latency: null },
     aiService: { status: 'UNKNOWN', latency: null },
@@ -99,13 +101,13 @@ function SystemHealth() {
   ];
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ marginBottom: '20px', borderBottom: '1px solid #334155', paddingBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: tokens.textPrimary }}>
+      <div style={{ marginBottom: '20px', borderBottom: `1px solid ${tokens.border}`, paddingBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#f8fafc', margin: '0 0 4px 0' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 800, color: tokens.textPrimary, margin: '0 0 4px 0' }}>
             System Status & Infrastructure
           </h1>
-          <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+          <p style={{ fontSize: '12px', color: tokens.textSecondary, margin: 0 }}>
             Real-time diagnostic health across core database, model engines, microservices, and user interfaces.
           </p>
         </div>
@@ -114,9 +116,9 @@ function SystemHealth() {
           onClick={checkHealth}
           disabled={loading}
           style={{
-            backgroundColor: '#1e293b',
-            color: '#f8fafc',
-            border: '1px solid #334155',
+            backgroundColor: tokens.bgCard,
+            color: tokens.textPrimary,
+            border: `1px solid ${tokens.border}`,
             padding: '6px 14px',
             borderRadius: '6px',
             fontSize: '11px',
@@ -133,8 +135,8 @@ function SystemHealth() {
       ) : (
         <>
           <div style={{
-            backgroundColor: '#064e3b',
-            border: '1px solid #059669',
+            backgroundColor: isDark ? '#064e3b' : '#ecfdf5',
+            border: `1px solid ${isDark ? '#059669' : '#a7f3d0'}`,
             borderRadius: '8px',
             padding: '14px 18px',
             marginBottom: '20px',
@@ -142,12 +144,12 @@ function SystemHealth() {
             alignItems: 'center',
             gap: '12px'
           }}>
-            <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#34d399' }}></span>
+            <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#6ee7b7' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: isDark ? '#6ee7b7' : '#065f46' }}>
                 SYSTEM STATUS: All Systems Operational
               </div>
-              <div style={{ fontSize: '11px', color: '#a7f3d0' }}>
+              <div style={{ fontSize: '11px', color: isDark ? '#a7f3d0' : '#047857' }}>
                 Core database, microservices, decision models, and GIS interfaces are healthy and communicating.
               </div>
             </div>
@@ -155,35 +157,35 @@ function SystemHealth() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px', marginBottom: '24px' }}>
             {subsystems.map((sub, idx) => (
-              <div key={idx} style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '14px' }}>
+              <div key={idx} style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px', boxShadow: tokens.shadow }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <strong style={{ fontSize: '13px', color: '#f8fafc' }}>{sub.name}</strong>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#34d399', backgroundColor: '#064e3b', padding: '2px 6px', borderRadius: '3px', border: '1px solid #059669' }}>
+                  <strong style={{ fontSize: '13px', color: tokens.textPrimary }}>{sub.name}</strong>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5', padding: '2px 6px', borderRadius: '3px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                     ● {sub.status}
                   </span>
                 </div>
-                <div style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 600, color: tokens.textMuted, marginBottom: '4px' }}>
                   {sub.tech}
                 </div>
-                <div style={{ fontSize: '11px', color: '#cbd5e1', lineHeight: 1.4 }}>
+                <div style={{ fontSize: '11px', color: tokens.textSecondary, lineHeight: 1.4 }}>
                   {sub.desc}
                 </div>
               </div>
             ))}
           </div>
 
-          <div style={{ border: '1px solid #334155', borderRadius: '6px', backgroundColor: '#1e293b', overflow: 'hidden' }}>
+          <div style={{ border: `1px solid ${tokens.border}`, borderRadius: '6px', backgroundColor: tokens.bgCard, overflow: 'hidden', boxShadow: tokens.shadow }}>
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: '#0f172a',
+                background: tokens.bgTertiary,
                 border: 'none',
                 textAlign: 'left',
                 fontSize: '12px',
                 fontWeight: 700,
-                color: '#f8fafc',
+                color: tokens.textPrimary,
                 cursor: 'pointer',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -195,38 +197,38 @@ function SystemHealth() {
             </button>
 
             {showAdvanced && (
-              <div style={{ padding: '16px', borderTop: '1px solid #334155' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', color: '#f8fafc' }}>
+              <div style={{ padding: '16px', borderTop: `1px solid ${tokens.border}` }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', color: tokens.textPrimary }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#0f172a', textAlign: 'left' }}>
-                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Subsystem Endpoint</th>
-                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Port</th>
-                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Protocol</th>
-                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Latency</th>
-                      <th style={{ padding: '6px 8px', border: '1px solid #334155' }}>Status</th>
+                    <tr style={{ backgroundColor: tokens.bgTertiary, textAlign: 'left' }}>
+                      <th style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>Subsystem Endpoint</th>
+                      <th style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>Port</th>
+                      <th style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>Protocol</th>
+                      <th style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>Latency</th>
+                      <th style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>Spring Boot REST Backend</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>8081</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>HTTP / JSON</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>{healthData.backend.latency || 4} ms</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#34d399', fontWeight: 700 }}>{healthData.backend.status}</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>Spring Boot REST Backend</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>8081</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>HTTP / JSON</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>{healthData.backend.latency || 4} ms</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}`, color: '#10b981', fontWeight: 700 }}>{healthData.backend.status}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>FastAPI AI & Routing Service</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>8000</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>HTTP / REST</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>{healthData.aiService.latency || 6} ms</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#34d399', fontWeight: 700 }}>{healthData.aiService.status}</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>FastAPI AI & Routing Service</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>8000</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>HTTP / REST</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>{healthData.aiService.latency || 6} ms</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}`, color: '#10b981', fontWeight: 700 }}>{healthData.aiService.status}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>PostgreSQL 17 / PostGIS</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>5432</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>JDBC / Spatial SQL</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>&lt;1 ms</td>
-                      <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#34d399', fontWeight: 700 }}>{healthData.database.status}</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>PostgreSQL 17 / PostGIS</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>5432</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>JDBC / Spatial SQL</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}` }}>&lt;1 ms</td>
+                      <td style={{ padding: '6px 8px', border: `1px solid ${tokens.border}`, color: '#10b981', fontWeight: 700 }}>{healthData.database.status}</td>
                     </tr>
                   </tbody>
                 </table>

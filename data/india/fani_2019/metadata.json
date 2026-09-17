@@ -1,0 +1,42 @@
+{
+  "event_id": "fani_2019",
+  "event_name": "Cyclone Fani (Puri, Odisha)",
+  "disaster_type": "CYCLONE",
+  "disaster_subtype": "Extremely Severe Cyclonic Storm / Coastal Storm Surge & High Winds",
+  "event_date": "2019-05-03",
+  "state": "Odisha",
+  "district": "Puri",
+  "country": "India",
+  "center_lat": 19.81,
+  "center_lon": 85.83,
+  "bbox": [85.80, 19.78, 85.86, 19.84],
+  "sentinel2_tile": "45QUB",
+  "pre_image_date": "2019-04-28",
+  "post_image_date": "2019-05-10",
+  "data_sources": [
+    {
+      "name": "Copernicus EMS Rapid Mapping EMSR357 (AOI08 Puri Grading)",
+      "type": "building_damage_vector",
+      "url": "https://rapidmapping.emergency.copernicus.eu/EMSR357",
+      "format": "Shapefile",
+      "license": "Copernicus Open Access / European Union Open Data",
+      "has_damage_labels": true,
+      "feature_count": 9777,
+      "label_field": "damage_gra",
+      "notes": "Contains 1333 Destroyed, 7751 Damaged, 693 Possibly damaged structural assessments"
+    },
+    {
+      "name": "Copernicus Sentinel-2 L2A Optical Surface Reflectance",
+      "type": "optical_imagery",
+      "url": "https://dataspace.copernicus.eu/",
+      "format": "SAFE / JP2 / GeoTIFF",
+      "license": "Copernicus Open Access",
+      "has_damage_labels": false,
+      "pre_date": "2019-04-28 (2.2% cloud)",
+      "post_date": "2019-05-10 (8.4% cloud)",
+      "notes": "Verified clear optical pre/post pair covering Puri city and landfall zone"
+    }
+  ],
+  "label_availability": "EXPERT_VERIFIED_GROUND_TRUTH",
+  "notes": "Core research scenario for cyclone wind & surge damage assessment with verified Copernicus EMSR357 labels"
+}
