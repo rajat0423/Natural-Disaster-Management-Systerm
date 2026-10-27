@@ -1,8 +1,10 @@
 package com.disastermgmt.service;
 
 import com.disastermgmt.entity.Incident;
+import com.disastermgmt.entity.OperationalZone;
 import com.disastermgmt.entity.ResponseUnit;
 import com.disastermgmt.repository.IncidentRepository;
+import com.disastermgmt.repository.OperationalZoneRepository;
 import com.disastermgmt.repository.ResponseUnitRepository;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -28,10 +30,14 @@ public class CadDispatchService {
 
     private final IncidentRepository incidentRepository;
     private final ResponseUnitRepository unitRepository;
+    private final OperationalZoneRepository zoneRepository;
 
-    public CadDispatchService(IncidentRepository incidentRepository, ResponseUnitRepository unitRepository) {
+    public CadDispatchService(IncidentRepository incidentRepository, 
+                              ResponseUnitRepository unitRepository,
+                              OperationalZoneRepository zoneRepository) {
         this.incidentRepository = incidentRepository;
         this.unitRepository = unitRepository;
+        this.zoneRepository = zoneRepository;
     }
 
     public List<Incident> getIncidents(Long scenarioId, boolean activeOnly) {
@@ -164,6 +170,55 @@ public class CadDispatchService {
     }
 
     /**
+     * Dispatches a specific response unit directly to an operational zone centroid
+     */
+    @Transactional
+    public Incident dispatchToZone(Long scenarioId, Long zoneId, UUID unitId, String notes) {
+        OperationalZone zone = zoneRepository.findById(zoneId)
+                .orElseThrow(() -> new IllegalArgumentException("Operational zone not found: " + zoneId));
+
+        Point targetPoint = null;
+        if (zone.getGeometry() != null) {
+            targetPoint = zone.getGeometry().getCentroid();
+        }
+        if (targetPoint == null) {
+            targetPoint = GF.createPoint(new Coordinate(79.70, 30.48));
+        }
+
+        Incident inc = new Incident();
+        inc.setScenarioId(scenarioId != null ? scenarioId : zone.getScenarioId());
+        inc.setCode(String.format("DSP-%d-%04d", LocalDateTime.now().getYear(), (int)(Math.random() * 9000 + 1000)));
+        inc.setTitle("TACTICAL DISPATCH: " + zone.getName());
+        inc.setDisasterType("DISPATCH");
+        inc.setStatus("DISPATCHED");
+        inc.setPriority("CRITICAL".equalsIgnoreCase(zone.getCriticality()) ? "P1_CRITICAL" : "P2_HIGH");
+        inc.setReportedBy("AIDRS Tactical Dispatch Console");
+        inc.setAddressText(notes != null && !notes.trim().isEmpty() ? notes : "Direct CAD Response Deployment to " + zone.getName());
+        inc.setLocation(targetPoint);
+        inc.setVictimCount(zone.getTotalBuildings() != null ? zone.getTotalBuildings() : 1);
+        inc.setTrappedCount(zone.getDestroyedCount() != null ? zone.getDestroyedCount() : 0);
+
+        ResponseUnit unit;
+        if (unitId != null) {
+            unit = unitRepository.findById(unitId)
+                    .orElseThrow(() -> new IllegalArgumentException("Response unit not found: " + unitId));
+        } else {
+            unit = findNearestAvailableUnit(inc)
+                    .orElseThrow(() -> new IllegalStateException("No available response units for scenario " + scenarioId));
+        }
+
+        inc.setAssignedTeamId(unit.getId());
+        inc.setDispatchedAt(LocalDateTime.now());
+        Incident saved = incidentRepository.save(inc);
+
+        unit.setStatus("DISPATCHED");
+        unit.setActiveIncidentId(saved.getId());
+        unitRepository.save(unit);
+
+        return saved;
+    }
+
+    /**
      * Updates incident status along the ICS lifecycle
      */
     @Transactional
@@ -226,6 +281,10 @@ public class CadDispatchService {
     private Optional<ResponseUnit> findNearestAvailableUnit(Incident inc) {
         List<ResponseUnit> available = unitRepository.findAvailableUnitsByScenario(inc.getScenarioId());
         if (available.isEmpty()) {
+            List<ResponseUnit> all = unitRepository.findByScenarioId(inc.getScenarioId());
+            if (!all.isEmpty()) {
+                return Optional.of(all.get(0));
+            }
             return Optional.empty();
         }
 

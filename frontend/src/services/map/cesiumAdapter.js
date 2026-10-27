@@ -370,13 +370,18 @@ export function convertHazardsTo3DEntities(hazardFeatures = [], scenarioId = 1) 
     if (!ring || ring.length < 3) continue;
 
     const flatCoords = [];
+    let sumLon = 0, sumLat = 0;
     for (const pt of ring) {
       flatCoords.push(pt[0], pt[1]);
+      sumLon += pt[0];
+      sumLat += pt[1];
     }
+    const centerLon = sumLon / ring.length;
+    const centerLat = sumLat / ring.length;
 
     try {
       const positions = Cesium.Cartesian3.fromDegreesArray(flatCoords);
-      const color = isDharali ? Cesium.Color.fromCssColorString('#ef4444').withAlpha(0.28) : Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.22);
+      const color = isDharali ? Cesium.Color.fromCssColorString('#ef4444').withAlpha(0.38) : Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.32);
       const outlineColor = isDharali ? Cesium.Color.fromCssColorString('#dc2626') : Cesium.Color.fromCssColorString('#d97706');
 
       entities.push({
@@ -391,6 +396,29 @@ export function convertHazardsTo3DEntities(hazardFeatures = [], scenarioId = 1) 
         properties: {
           ...p,
           _drasType: 'hazard'
+        }
+      });
+
+      // 3D Centroid Hazard Warning Beacon
+      entities.push({
+        id: `hazard-beacon-${p.id || i}`,
+        position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 60),
+        label: {
+          text: `⚠️ HAZARD ZONE: ${(p.hazardType || p.hazard_type || 'HAZARD EXTENT').replace(/_/g, ' ')}`,
+          font: 'bold 12px Inter, sans-serif',
+          fillColor: Cesium.Color.WHITE,
+          backgroundColor: Cesium.Color.fromCssColorString(isDharali ? 'rgba(220, 38, 38, 0.92)' : 'rgba(217, 119, 6, 0.92)'),
+          showBackground: true,
+          backgroundPadding: new Cesium.Cartesian2(8, 4),
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        point: {
+          pixelSize: 18,
+          color: Cesium.Color.fromCssColorString(isDharali ? '#ef4444' : '#f59e0b'),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 3,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
         }
       });
     } catch (e) {
@@ -678,13 +706,20 @@ export function convertAlertsTo3DEntities(alerts = []) {
         id: `cap-alert-badge-${props.id || props.identifier}`,
         position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 100),
         label: {
-          text: `🚨 CAP 1.2 BROADCAST: ${props.event || 'EMERGENCY ALERT'}\n${(props.headline || '').slice(0, 48)}...`,
-          font: 'bold 11px sans-serif',
+          text: `🚨 EVACUATE IMMEDIATELY\n${props.event || 'EMERGENCY ALERT'} • ${(props.headline || '').slice(0, 42)}`,
+          font: 'bold 12px Inter, sans-serif',
           fillColor: Cesium.Color.WHITE,
-          backgroundColor: Cesium.Color.fromCssColorString('rgba(185, 28, 28, 0.95)'),
+          backgroundColor: Cesium.Color.fromCssColorString('rgba(220, 38, 38, 0.95)'),
           showBackground: true,
-          backgroundPadding: new Cesium.Cartesian2(8, 4),
+          backgroundPadding: new Cesium.Cartesian2(10, 5),
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        point: {
+          pixelSize: 20,
+          color: Cesium.Color.fromCssColorString('#ef4444'),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 3,
           disableDepthTestDistance: Number.POSITIVE_INFINITY
         }
       });

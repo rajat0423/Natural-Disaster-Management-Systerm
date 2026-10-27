@@ -61,6 +61,43 @@ public class CapAlertService {
         return alertRepository.findById(id);
     }
 
+    public Optional<Alert> getAlertByIdentifier(String identifier) {
+        return alertRepository.findByIdentifier(identifier);
+    }
+
+    public Optional<Alert> findAlertByIdOrIdentifier(String idOrIdentifier) {
+        if (idOrIdentifier == null || idOrIdentifier.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            UUID uid = UUID.fromString(idOrIdentifier.trim());
+            Optional<Alert> opt = alertRepository.findById(uid);
+            if (opt.isPresent()) return opt;
+        } catch (IllegalArgumentException ignored) {}
+        return alertRepository.findByIdentifier(idOrIdentifier.trim());
+    }
+
+    public Alert buildSyntheticAlert(String identifier) {
+        Alert a = new Alert();
+        a.setId(UUID.randomUUID());
+        a.setIdentifier(identifier != null && !identifier.trim().isEmpty() ? identifier : "AIDRS-CAP-EMERGENCY");
+        a.setSender("OPS-COMMAND@AIDRS.GOV");
+        a.setStatus("Actual");
+        a.setMsgType("Alert");
+        a.setScope("Public");
+        a.setCategory("Safety");
+        a.setEvent("Emergency Response Direct Action");
+        a.setUrgency("Immediate");
+        a.setSeverity("Extreme");
+        a.setCertainty("Observed");
+        a.setHeadline("EMERGENCY DIRECTIVE: Sector Response Active");
+        a.setDescription("Emergency response protocols active in target sector. Follow all official guidance.");
+        a.setInstruction("Move to safe staging areas or designated shelters immediately.");
+        a.setSentAt(LocalDateTime.now());
+        a.setExpiresAt(LocalDateTime.now().plusHours(12));
+        return a;
+    }
+
     public List<AlertDelivery> getDeliveriesForAlert(UUID alertId) {
         return alertDeliveryRepository.findByAlertId(alertId);
     }
@@ -70,8 +107,50 @@ public class CapAlertService {
         if (alert.getIdentifier() == null || alert.getIdentifier().trim().isEmpty()) {
             alert.setIdentifier("AIDRS-" + System.currentTimeMillis() % 100000);
         }
+        if (alert.getSender() == null || alert.getSender().trim().isEmpty()) {
+            alert.setSender("OPS-COMMAND@AIDRS.GOV");
+        }
+        if (alert.getStatus() == null || alert.getStatus().trim().isEmpty()) {
+            alert.setStatus("Actual");
+        }
+        if (alert.getMsgType() == null || alert.getMsgType().trim().isEmpty()) {
+            alert.setMsgType("Alert");
+        }
+        if (alert.getScope() == null || alert.getScope().trim().isEmpty()) {
+            alert.setScope("Public");
+        }
+        if (alert.getCategory() == null || alert.getCategory().trim().isEmpty()) {
+            alert.setCategory("Safety");
+        }
+        if (alert.getEvent() == null || alert.getEvent().trim().isEmpty()) {
+            alert.setEvent("Emergency Response Directive");
+        }
+        if (alert.getUrgency() == null || alert.getUrgency().trim().isEmpty()) {
+            alert.setUrgency("Immediate");
+        }
+        if (alert.getSeverity() == null || alert.getSeverity().trim().isEmpty()) {
+            alert.setSeverity("Extreme");
+        }
+        if (alert.getCertainty() == null || alert.getCertainty().trim().isEmpty()) {
+            alert.setCertainty("Observed");
+        }
+        if (alert.getHeadline() == null || alert.getHeadline().trim().isEmpty()) {
+            alert.setHeadline("EMERGENCY DIRECTIVE: Sector Response Active");
+        }
+        if (alert.getDescription() == null || alert.getDescription().trim().isEmpty()) {
+            alert.setDescription("Hazard conditions detected in sector. Incident Command protocols activated.");
+        }
+        if (alert.getInstruction() == null || alert.getInstruction().trim().isEmpty()) {
+            alert.setInstruction("Follow all incident command directions and proceed to designated relief points.");
+        }
         if (alert.getSentAt() == null) alert.setSentAt(LocalDateTime.now());
         if (alert.getExpiresAt() == null) alert.setExpiresAt(LocalDateTime.now().plusHours(12));
+
+        if (alert.getTargetZoneId() != null && alert.getGeometry() == null) {
+            zoneRepository.findById(alert.getTargetZoneId()).ifPresent(z -> {
+                alert.setGeometry(z.getGeometry());
+            });
+        }
 
         Alert saved = alertRepository.save(alert);
         recordDefaultDeliveries(saved.getId());

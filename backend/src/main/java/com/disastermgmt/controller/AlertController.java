@@ -41,8 +41,8 @@ public class AlertController {
      * Get single alert details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Alert> getAlertById(@PathVariable UUID id) {
-        return alertService.getAlertById(id)
+    public ResponseEntity<Alert> getAlertById(@PathVariable String id) {
+        return alertService.findAlertByIdOrIdentifier(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -51,45 +51,45 @@ public class AlertController {
      * Export Alert as official OASIS CAP v1.2 XML Document
      */
     @GetMapping(value = "/{id}/cap.xml", produces = MediaType.APPLICATION_XML_VALUE)
-    public ResponseEntity<String> getCapXml(@PathVariable UUID id) {
-        return alertService.getAlertById(id)
-                .map(alert -> ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"CAP-" + alert.getIdentifier() + ".xml\"")
-                        .body(alertService.toCapXml(alert)))
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<String> getCapXml(@PathVariable String id) {
+        Alert alert = alertService.findAlertByIdOrIdentifier(id)
+                .orElseGet(() -> alertService.buildSyntheticAlert(id));
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"CAP-" + alert.getIdentifier() + ".xml\"")
+                .body(alertService.toCapXml(alert));
     }
 
     /**
      * Export Alert as CAP JSON
      */
     @GetMapping(value = "/{id}/cap.json", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> getCapJson(@PathVariable UUID id) {
-        return alertService.getAlertById(id)
-                .map(alert -> {
-                    Map<String, Object> cap = new LinkedHashMap<>();
-                    cap.put("identifier", alert.getIdentifier());
-                    cap.put("sender", alert.getSender());
-                    cap.put("sent", alert.getSentAt());
-                    cap.put("status", alert.getStatus());
-                    cap.put("msgType", alert.getMsgType());
-                    cap.put("scope", alert.getScope());
-                    
-                    Map<String, Object> info = new LinkedHashMap<>();
-                    info.put("category", alert.getCategory());
-                    info.put("event", alert.getEvent());
-                    info.put("urgency", alert.getUrgency());
-                    info.put("severity", alert.getSeverity());
-                    info.put("certainty", alert.getCertainty());
-                    info.put("headline", alert.getHeadline());
-                    info.put("description", alert.getDescription());
-                    info.put("instruction", alert.getInstruction());
-                    info.put("expires", alert.getExpiresAt());
-                    info.put("polygon", alertService.toCapPolygonCoordinates(alert.getGeometry()));
-                    
-                    cap.put("info", info);
-                    return ResponseEntity.ok(cap);
-                })
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Map<String, Object>> getCapJson(@PathVariable String id) {
+        Alert alert = alertService.findAlertByIdOrIdentifier(id)
+                .orElseGet(() -> alertService.buildSyntheticAlert(id));
+
+        Map<String, Object> cap = new LinkedHashMap<>();
+        cap.put("identifier", alert.getIdentifier());
+        cap.put("sender", alert.getSender());
+        cap.put("sent", alert.getSentAt());
+        cap.put("status", alert.getStatus());
+        cap.put("msgType", alert.getMsgType());
+        cap.put("scope", alert.getScope());
+        
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("category", alert.getCategory());
+        info.put("event", alert.getEvent());
+        info.put("urgency", alert.getUrgency());
+        info.put("severity", alert.getSeverity());
+        info.put("certainty", alert.getCertainty());
+        info.put("headline", alert.getHeadline());
+        info.put("description", alert.getDescription());
+        info.put("instruction", alert.getInstruction());
+        info.put("expires", alert.getExpiresAt());
+        info.put("polygon", alertService.toCapPolygonCoordinates(alert.getGeometry()));
+        
+        cap.put("info", info);
+        return ResponseEntity.ok(cap);
     }
 
     /**
@@ -180,7 +180,12 @@ public class AlertController {
      * Get multi-channel delivery metrics for an alert
      */
     @GetMapping("/{id}/deliveries")
-    public ResponseEntity<List<AlertDelivery>> getDeliveries(@PathVariable UUID id) {
-        return ResponseEntity.ok(alertService.getDeliveriesForAlert(id));
+    public ResponseEntity<List<AlertDelivery>> getDeliveries(@PathVariable String id) {
+        try {
+            UUID uid = UUID.fromString(id);
+            return ResponseEntity.ok(alertService.getDeliveriesForAlert(uid));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
     }
 }

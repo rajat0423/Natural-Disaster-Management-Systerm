@@ -119,6 +119,15 @@ public class IncidentController {
         return ResponseEntity.ok(cadService.dispatchUnit(id, unitId));
     }
 
+    @PostMapping("/dispatch-to-zone")
+    public ResponseEntity<Incident> dispatchToZone(
+            @RequestParam Long scenarioId,
+            @RequestParam Long zoneId,
+            @RequestParam(required = false) UUID unitId,
+            @RequestParam(required = false) String notes) {
+        return ResponseEntity.ok(cadService.dispatchToZone(scenarioId, zoneId, unitId, notes));
+    }
+
     @PutMapping("/{id}/status")
     public ResponseEntity<Incident> updateStatus(
             @PathVariable UUID id,
