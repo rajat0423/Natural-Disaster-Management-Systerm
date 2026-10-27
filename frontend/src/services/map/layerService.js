@@ -43,10 +43,8 @@ export const layerService = {
     });
 
     try {
-      if (currentBaseLayer) {
-        viewer.imageryLayers.remove(currentBaseLayer, true);
-      }
-      currentBaseLayer = viewer.imageryLayers.addImageryProvider(provider, 0);
+      viewer.imageryLayers.removeAll();
+      currentBaseLayer = viewer.imageryLayers.addImageryProvider(provider);
     } catch (e) {
       console.warn('Failed to switch base map provider, maintaining fallback', e);
     }

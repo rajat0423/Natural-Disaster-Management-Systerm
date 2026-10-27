@@ -37,6 +37,7 @@ export default function CesiumGlobe({
   onSelectZone,
   activeRoute = null,
   rawDataRef,
+  dataVersion = 0,
   mapViewMode = '3D',
   setMapViewMode,
   presentationMode = false,
@@ -75,6 +76,7 @@ export default function CesiumGlobe({
     }
 
     const viewer = new Cesium.Viewer(containerRef.current, {
+      baseLayer: false,
       animation: false,
       baseLayerPicker: false,
       fullscreenButton: false,
@@ -162,7 +164,7 @@ export default function CesiumGlobe({
               cameraService.flyToBuilding(viewer, lon, lat, 20);
             }
           }
-        } else if (drasType === 'operational_zone' || drasType === 'zone_badge') {
+        } else if (drasType === 'operational_zone' || drasType === 'zone_badge' || drasType === 'operational_zone_outline' || drasType === 'zone_pin') {
           const rawFeat = props.rawFeature ? props.rawFeature.getValue() : null;
           const zProps = rawFeat?.properties || props;
           if (onSelectZone) {
@@ -216,7 +218,7 @@ export default function CesiumGlobe({
                 y: movement.endPosition.y
               });
               return;
-            } else if (drasType === 'operational_zone' || drasType === 'zone_badge') {
+            } else if (drasType === 'operational_zone' || drasType === 'zone_badge' || drasType === 'operational_zone_outline' || drasType === 'zone_pin') {
               setHoveredEntity({
                 type: 'zone',
                 name: props.name ? props.name.getValue() : 'Operational Sector',
@@ -320,7 +322,7 @@ export default function CesiumGlobe({
     for (const ent of entities) {
       ds.entities.add(ent);
     }
-  }, [mapMode, layers.damages, layers.priorities, damageFilter, priorityFilter, confidenceThreshold, selectedBuilding, selectedScenarioId]);
+  }, [mapMode, layers.damages, layers.priorities, damageFilter, priorityFilter, confidenceThreshold, selectedBuilding, selectedScenarioId, dataVersion]);
 
   useEffect(() => {
     updateBuildings();
@@ -342,7 +344,7 @@ export default function CesiumGlobe({
     for (const ent of entities) {
       ds.entities.add(ent);
     }
-  }, [layers.roads, selectedScenarioId]);
+  }, [layers.roads, selectedScenarioId, dataVersion]);
 
   // 5. Render / Update Emergency Facilities (Hospitals & Shelters)
   useEffect(() => {
@@ -365,7 +367,7 @@ export default function CesiumGlobe({
     for (const ent of entities) {
       ds.entities.add(ent);
     }
-  }, [layers.hospitals, layers.shelters, selectedScenarioId]);
+  }, [layers.hospitals, layers.shelters, selectedScenarioId, dataVersion]);
 
   // 6. Render / Update Hazards (e.g. 20.4 ha Dharali debris fan)
   useEffect(() => {
@@ -383,7 +385,7 @@ export default function CesiumGlobe({
     for (const ent of entities) {
       ds.entities.add(ent);
     }
-  }, [layers.hazards, selectedScenarioId]);
+  }, [layers.hazards, selectedScenarioId, dataVersion]);
 
   // 6b. Render / Update Operational Zones (4-tier macro sectors)
   useEffect(() => {
@@ -401,7 +403,7 @@ export default function CesiumGlobe({
     for (const ent of entities) {
       ds.entities.add(ent);
     }
-  }, [layers.zones, selectedScenarioId, selectedZone, rawDataRef.current?.zones]);
+  }, [layers.zones, selectedScenarioId, selectedZone, rawDataRef.current?.zones, dataVersion]);
 
   // 7. Render / Update Active 3D Route
   useEffect(() => {

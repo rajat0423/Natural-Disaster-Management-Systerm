@@ -24,7 +24,6 @@ from sklearn.cluster import KMeans
 import psycopg2
 from shapely import wkt
 from shapely.geometry import shape, mapping, Polygon, MultiPolygon, Point, MultiPoint
-from shapely.ops import unary_union
 
 DB_PARAMS = {
     "dbname": "disaster_db",
@@ -35,10 +34,10 @@ DB_PARAMS = {
 }
 
 SECTOR_NAMES = {
-    1: ["Malibu Canyon Ridge Sector", "Point Dume Coastal Sector", "Westlake Approach Sector", "Kanan Valley Sector"],
-    2: ["Raini Ground Zero Sector", "Tapovan Barrage Sector", "Rishiganga Valley Sector", "Joshimath Logistics Base"],
-    3: ["Puri Beachfront Impact Sector", "Swargadwar Urban Sector", "Grand Road Corridor", "Station Road North Sector"],
-    4: ["Kheer Ganga Confluence Sector", "Dharali Settlement Core", "Harsil Valley Sector", "Bhagirathi Riverfront"]
+    1: ["Malibu Canyon Ridge Sector", "Kanan Valley Sector", "Point Dume Coastal Sector", "Westlake Approach Sector"],
+    2: ["Raini Ground Zero Sector", "Rishiganga Valley Sector", "Tapovan Barrage Sector", "Joshimath Logistics Base"],
+    3: ["Grand Road Corridor", "Station Road North Sector", "Swargadwar Urban Sector", "Puri Beachfront Staging Sector"],
+    4: ["Kheer Ganga Confluence Sector", "Bhagirathi Riverfront Flash Surge", "Harsil Valley Sector", "Dharali Settlement Core"]
 }
 
 
@@ -49,7 +48,7 @@ class OperationalZoneGenerator:
     def get_connection(self):
         return psycopg2.connect(**self.db_params)
 
-    def generate_zones_for_scenario(self, scenario_id: int, num_zones: int = 3):
+    def generate_zones_for_scenario(self, scenario_id: int, num_zones: int = 4):
         conn = self.get_connection()
         cur = conn.cursor()
 
@@ -143,17 +142,21 @@ class OperationalZoneGenerator:
                 avg_pri = float(np.mean([b["priority_score"] for b in cluster_bldgs]))
                 highest_pri_bldg = max(cluster_bldgs, key=lambda b: b["priority_score"])
 
-                # Spatial perimeter: Organic buffered union of building footprints / locations
-                geoms = [b["geometry"] for b in cluster_bldgs if b.get("geometry") is not None]
-                if not geoms:
-                    geoms = [Point(b["lon"], b["lat"]).buffer(0.0008) for b in cluster_bldgs]
+                # Spatial perimeter: Convex hull of building points + buffer
+                pts = [Point(b["lon"], b["lat"]) for b in cluster_bldgs]
+                if len(pts) >= 3:
+                    hull = MultiPoint(pts).convex_hull
+                    # Buffer by ~200m in degrees (0.002 deg)
+                    zone_poly = hull.buffer(0.0022).simplify(0.0003)
+                elif len(pts) == 2:
+                    zone_poly = MultiPoint(pts).buffer(0.0025).simplify(0.0003)
                 else:
-                    geoms = [g.buffer(0.0010) for g in geoms]
+                    zone_poly = pts[0].buffer(0.0025).simplify(0.0003)
 
-                u = unary_union(geoms)
-                zone_poly = u.buffer(0.0004).buffer(-0.0003).simplify(0.0001, preserve_topology=True)
                 if zone_poly.geom_type == "MultiPolygon":
                     zone_poly = max(zone_poly.geoms, key=lambda g: g.area)
+                if zone_poly.geom_type != "Polygon":
+                    zone_poly = zone_poly.convex_hull
 
                 # Count intersecting GIS infrastructure
                 hosp_cnt = 0
@@ -184,47 +187,39 @@ class OperationalZoneGenerator:
                         pass
 
                 # Criticality Score calculation (0.0 to 1.0)
-                severe_ratio = (destroyed_cnt * 1.5 + major_cnt) / max(total_b, 1)
+                severe_ratio = (destroyed_cnt * 1.5 + major_cnt * 0.8) / max(total_b, 1)
                 crit_score = (
-                    0.35 * min(severe_ratio, 1.0) +
-                    0.30 * avg_pri +
-                    0.15 * min(blk_cnt / 2.0, 1.0) +
-                    0.10 * (1.0 if destroyed_cnt > 0 else 0.0) +
-                    0.10 * min(est_pop / 150.0, 1.0)
+                    0.40 * min(severe_ratio, 1.0) +
+                    0.35 * avg_pri +
+                    0.15 * (1.0 if destroyed_cnt > 0 else 0.2) +
+                    0.10 * (min(est_pop / 200.0, 1.0) if destroyed_cnt > 0 else 0.0)
                 )
                 crit_score = round(min(max(crit_score, 0.05), 0.99), 2)
 
-                # Criticality classification
-                if crit_score >= 0.65 or destroyed_cnt >= 3:
+                # FEMA / ICS Standard Multi-Tier Criticality Classification
+                # LOW: Safe staging areas, relief logistics bases, intact settlement cores (>35% intact, 0 destroyed, or score < 0.35)
+                if destroyed_cnt == 0 and (no_dmg_cnt / total_b >= 0.35 or crit_score < 0.35):
+                    criticality = "LOW"
+                    recom = "Support and logistics staging area. Primary triage reception, medical depot, and evacuee safe assembly point."
+                elif crit_score >= 0.60 or (severe_ratio >= 0.40 and destroyed_cnt >= 4):
                     criticality = "CRITICAL"
                     recom = "Immediate Urban Search & Rescue (USAR) deployment. Clear primary ingress corridors. Triage severely damaged structures."
-                elif crit_score >= 0.45 or major_cnt >= 2:
+                elif crit_score >= 0.49:
                     criticality = "HIGH"
                     recom = "Structural stabilization team dispatch. Route evacuees toward nearest operational relief facility. Supply distribution."
-                elif crit_score >= 0.28:
+                elif crit_score >= 0.30:
                     criticality = "MEDIUM"
                     recom = "Rapid damage verification. Secondary medical assistance. Restoration of local utilities."
                 else:
                     criticality = "LOW"
                     recom = "Support and logistics staging area. Triage center and evacuation assembly point."
 
-                sector_name = scenario_sector_titles[cluster_idx % len(scenario_sector_titles)]
-                zone_code = f"Z-{cluster_idx+1:02d}"
-
-                explanation = (
-                    f"Zone designated as {criticality} priority (Criticality Index: {crit_score:.2f}). "
-                    f"Encompasses {total_b} structures ({destroyed_cnt} destroyed, {major_cnt} major damage, "
-                    f"{minor_cnt} minor damage). Estimated {est_pop} exposed residents. "
-                    f"Access conditions: {blk_cnt} blocked road segment(s) reported in or adjacent to perimeter. "
-                    f"Operational assets: {hosp_cnt} hospital(s), {shelt_cnt} shelter(s)."
-                )
-
                 constituent_ids = [b["id"] for b in cluster_bldgs]
 
                 zones_data.append({
                     "scenario_id": scenario_id,
-                    "zone_code": zone_code,
-                    "name": sector_name,
+                    "zone_code": f"ZONE-SCEN{scenario_id:02d}-{cluster_idx+1:02d}",
+                    "name": "", # will be assigned by criticality rank
                     "criticality": criticality,
                     "criticality_score": crit_score,
                     "total_buildings": total_b,
@@ -239,13 +234,25 @@ class OperationalZoneGenerator:
                     "blocked_roads_count": blk_cnt,
                     "highest_priority_building_id": highest_pri_bldg["id"],
                     "recommended_action": recom,
-                    "explanation": explanation,
+                    "explanation": "", # will be formatted after naming
                     "constituent_building_ids": constituent_ids,
                     "geometry": zone_poly
                 })
 
-            # Sort zones by criticality score descending
+            # Sort zones by criticality score descending (most severe first)
             zones_data.sort(key=lambda z: z["criticality_score"], reverse=True)
+
+            # Assign calibrated sector names and codes based on criticality rank
+            for rank_idx, z in enumerate(zones_data):
+                z["name"] = scenario_sector_titles[rank_idx % len(scenario_sector_titles)]
+                z["zone_code"] = f"ZONE-SCEN{scenario_id:02d}-{rank_idx+1:02d}"
+                z["explanation"] = (
+                    f"{z['name']} designated as {z['criticality']} priority (Criticality Index: {z['criticality_score']:.2f}). "
+                    f"Encompasses {z['total_buildings']} structures ({z['destroyed_count']} destroyed, {z['major_damage_count']} major damage, "
+                    f"{z['minor_damage_count']} minor damage, {z['no_damage_count']} intact). Estimated {z['estimated_population']} exposed residents. "
+                    f"Access conditions: {z['blocked_roads_count']} blocked road segment(s) reported in or adjacent to perimeter. "
+                    f"Operational assets: {z['hospitals_count']} hospital(s), {z['shelters_count']} shelter(s)."
+                )
 
             return zones_data
 
@@ -360,7 +367,7 @@ class OperationalZoneGenerator:
         """Generates and persists operational zones for scenarios 1..4."""
         total_saved = 0
         for scen_id in [1, 2, 3, 4]:
-            n_zones = num_zones_per_scenario or (3 if scen_id in [2, 4] else 4)
+            n_zones = num_zones_per_scenario or 4
             zones = self.generate_zones_for_scenario(scen_id, num_zones=n_zones)
             saved = self.save_zones_to_db(scen_id, zones)
             total_saved += saved

@@ -158,15 +158,14 @@ export function convertBuildingsTo3DEntities(features = [], options = {}) {
         polygon: {
           hierarchy: positions,
           height: 0,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           extrudedHeight: isSelected ? height + 6 : height,
-          extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
           material: isSelected 
             ? new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.95))
             : new Cesium.ColorMaterialProperty(baseColor),
           outline: true,
           outlineColor: isSelected ? Cesium.Color.RED : Cesium.Color.fromCssColorString('#0f172a').withAlpha(0.85),
-          outlineWidth: isSelected ? 4 : 1
+          closeTop: true,
+          closeBottom: true
         },
         properties: {
           ...props,
@@ -385,11 +384,9 @@ export function convertHazardsTo3DEntities(hazardFeatures = [], scenarioId = 1) 
         name: isDharali ? 'Dharali 2025 Debris / Impact Extent (20.4 ha)' : (p.name || 'Hazard Extent'),
         polygon: {
           hierarchy: positions,
+          height: 0,
           material: new Cesium.ColorMaterialProperty(color),
-          outline: true,
-          outlineColor,
-          outlineWidth: 3,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+          classificationType: Cesium.ClassificationType.TERRAIN
         },
         properties: {
           ...p,
@@ -420,8 +417,9 @@ export function convertZonesTo3DEntities(zoneFeatures = [], options = {}) {
     const crit = (p.criticality || 'LOW').toUpperCase();
     const isSelected = selectedZone?.id === p.id;
     const hex = p.color || PRIORITY_COLORS[crit] || '#10b981';
-    const color = Cesium.Color.fromCssColorString(hex).withAlpha(isSelected ? 0.28 : 0.12);
-    const outlineCol = Cesium.Color.fromCssColorString(hex).withAlpha(0.95);
+    const fillAlpha = isSelected ? 0.42 : 0.28;
+    const fillColor = Cesium.Color.fromCssColorString(hex).withAlpha(fillAlpha);
+    const outlineCol = Cesium.Color.fromCssColorString(hex).withAlpha(0.98);
 
     const ring = getLinearRingCoordinates(feat.geometry);
     if (!ring || ring.length < 3) continue;
@@ -438,18 +436,38 @@ export function convertZonesTo3DEntities(zoneFeatures = [], options = {}) {
 
     try {
       const positions = Cesium.Cartesian3.fromDegreesArray(flatCoords);
+      if (positions.length < 3) continue;
 
-      // 1. Clamped Sector Polygon
+      // 1. Clamped Perimeter Polyline (Bold crisp outline so boundaries are 100% visible in 3D)
+      const perimeterPositions = [...positions];
+      if (flatCoords.length >= 4 && (flatCoords[0] !== flatCoords[flatCoords.length - 2] || flatCoords[1] !== flatCoords[flatCoords.length - 1])) {
+        perimeterPositions.push(positions[0]);
+      }
+
+      entities.push({
+        id: `operational-zone-outline-${zid}`,
+        name: `Sector Boundary: ${p.name || p.zoneCode}`,
+        polyline: {
+          positions: perimeterPositions,
+          width: isSelected ? 5.0 : 3.5,
+          clampToGround: true,
+          material: new Cesium.ColorMaterialProperty(outlineCol)
+        },
+        properties: {
+          ...p,
+          _drasType: 'operational_zone_outline',
+          rawFeature: feat
+        }
+      });
+
+      // 2. Clamped Sector Polygon (Vivid translucent color fill on Ellipsoid & 3D Terrain)
       entities.push({
         id: `operational-zone-${zid}`,
         name: `Operational Sector: ${p.name || p.zoneCode}`,
         polygon: {
           hierarchy: positions,
-          material: new Cesium.ColorMaterialProperty(color),
-          outline: true,
-          outlineColor: outlineCol,
-          outlineWidth: isSelected ? 4 : 2,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+          material: new Cesium.ColorMaterialProperty(fillColor),
+          classificationType: Cesium.ClassificationType.BOTH
         },
         properties: {
           ...p,
@@ -458,7 +476,27 @@ export function convertZonesTo3DEntities(zoneFeatures = [], options = {}) {
         }
       });
 
-      // 2. 3D Floating Sector Badge at Zone Centroid with collision-avoiding offsets & distance scaling
+      // 3. Ground-clamped Centroid Pin Anchor
+      entities.push({
+        id: `zone-pin-${zid}`,
+        name: `Sector Anchor: ${p.name || p.zoneCode}`,
+        position: Cesium.Cartesian3.fromDegrees(centroidLon, centroidLat),
+        point: {
+          pixelSize: isSelected ? 12 : 8,
+          color: Cesium.Color.fromCssColorString(hex),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 2,
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        properties: {
+          ...p,
+          _drasType: 'zone_pin',
+          rawFeature: feat
+        }
+      });
+
+      // 4. 3D Floating Sector Badge at Zone Centroid with wide distance visibility
       const offsets = [
         new Cesium.Cartesian2(0, -36),
         new Cesium.Cartesian2(-60, -22),
@@ -469,12 +507,12 @@ export function convertZonesTo3DEntities(zoneFeatures = [], options = {}) {
       ];
       const pixelOffset = isSelected ? new Cesium.Cartesian2(0, -45) : offsets[i % offsets.length];
       const labelText = isSelected
-        ? `${p.name || p.zoneCode}\n${p.totalBuildings || 0} Structures • ${p.destroyedCount || 0} Destroyed`
+        ? `${p.name || p.zoneCode}\n${p.totalBuildings || p.total_buildings || 0} Structures • ${p.destroyedCount || p.destroyed_count || 0} Destroyed [${crit}]`
         : `${p.name || p.zoneCode} [${crit}]`;
 
       entities.push({
         id: `zone-badge-${zid}`,
-        name: `Sector Indicator: ${p.name}`,
+        name: `Sector Indicator: ${p.name || p.zoneCode}`,
         position: Cesium.Cartesian3.fromDegrees(centroidLon, centroidLat),
         label: {
           text: labelText,
@@ -483,20 +521,20 @@ export function convertZonesTo3DEntities(zoneFeatures = [], options = {}) {
           outlineColor: Cesium.Color.fromCssColorString('#0a0f1d'),
           outlineWidth: 3,
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          backgroundColor: Cesium.Color.fromCssColorString(hex).withAlpha(isSelected ? 0.95 : 0.85),
+          backgroundColor: Cesium.Color.fromCssColorString(hex).withAlpha(isSelected ? 0.95 : 0.88),
           showBackground: true,
           backgroundPadding: new Cesium.Cartesian2(8, 4),
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
           pixelOffset: pixelOffset,
           heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          disableDepthTestDistance: 50000,
-          scaleByDistance: new Cesium.NearFarScalar(1500, 1.0, 18000, 0.65),
-          translucencyByDistance: new Cesium.NearFarScalar(14000, 1.0, 32000, 0.0),
-          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(20, 35000)
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: new Cesium.NearFarScalar(1000, 1.0, 60000, 0.75),
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(10, 200000)
         },
         properties: {
           ...p,
-          _drasType: 'zone_badge'
+          _drasType: 'zone_badge',
+          rawFeature: feat
         }
       });
     } catch (e) {

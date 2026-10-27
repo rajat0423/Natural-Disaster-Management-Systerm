@@ -17,7 +17,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
-import { Layers, ChevronRight, X, Satellite } from 'lucide-react';
+import CesiumGlobe from '../components/globe/CesiumGlobe';
+import { Layers, ChevronRight, X, Satellite, Globe, Map as MapIcon } from 'lucide-react';
 
 const DAMAGE_COLORS = {
   'no-damage': '#10b981',
@@ -71,6 +72,11 @@ function DisasterMap() {
   const [loading, setLoading] = useState(false);
   const [routingLoading, setRoutingLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [dataVersion, setDataVersion] = useState(0);
+
+  // 2D / 3D Globe Mode: '3D' (Cesium 3D Earth) | '2D' (Leaflet 2D Map)
+  const [mapViewMode, setMapViewMode] = useState('3D');
+  const [presentationMode, setPresentationMode] = useState(false);
 
   // View Level: 'BUILDINGS' | 'ZONES' | 'BOTH'
   const [viewLevel, setViewLevel] = useState('BOTH');
@@ -105,7 +111,7 @@ function DisasterMap() {
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [selectedZone, setSelectedZone] = useState(null);
   const [activeRoute, setActiveRoute] = useState(null);
-  const [isLegendCollapsed, setIsLegendCollapsed] = useState(true);
+  const [isLegendCollapsed, setIsLegendCollapsed] = useState(false);
 
   // Raw GeoJSON Data Cache
   const rawDataRef = useRef({
@@ -138,6 +144,7 @@ function DisasterMap() {
 
       Object.values(layerGroupsRef.current).forEach(lg => lg.addTo(map));
       mapInstanceRef.current = map;
+      setTimeout(() => map.invalidateSize(), 200);
     }
 
     loadScenarios();
@@ -214,6 +221,7 @@ function DisasterMap() {
       };
 
       setSummary(sumResp.data);
+      setDataVersion(v => v + 1);
       renderLayers();
     } catch (err) {
       setError(`Failed to load GIS layers: ${err.message}`);
@@ -378,11 +386,10 @@ function DisasterMap() {
           const col = PRIORITY_COLORS[crit] || '#059669';
           return {
             color: isSelected ? '#ffffff' : col,
-            weight: isSelected ? 3.5 : 2.2,
-            opacity: isSelected ? 1.0 : 0.85,
-            dashArray: null,
+            weight: isSelected ? 4 : 2.5,
+            dashArray: crit === 'CRITICAL' ? '4, 4' : null,
             fillColor: col,
-            fillOpacity: isSelected ? 0.28 : 0.12
+            fillOpacity: isSelected ? 0.38 : 0.20
           };
         },
         onEachFeature: (feat, layer) => {
@@ -391,7 +398,7 @@ function DisasterMap() {
           const col = PRIORITY_COLORS[crit] || '#059669';
 
           layer.on({
-            mouseover: (e) => e.target.setStyle({ weight: 4, fillOpacity: 0.28, opacity: 1.0 }),
+            mouseover: (e) => e.target.setStyle({ weight: 4, fillOpacity: 0.40 }),
             mouseout: (e) => {
               if (selectedZone?.id !== p.id) {
                 zoneLayer.resetStyle(e.target);
@@ -418,35 +425,35 @@ function DisasterMap() {
           // Visible centroid badge marker on map
           if (layer.getBounds && layer.getBounds().isValid()) {
             const center = layer.getBounds().getCenter();
-            const displayName = p.name ? p.name.split('—')[0].split('-')[0].trim() : '';
             const badgeHtml = `
               <div style="
                 background: ${isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)'};
-                border: 1.5px solid ${col};
+                border: 2px solid ${col};
                 color: ${isDark ? '#f8fafc' : '#0f172a'};
                 padding: 3px 8px;
                 border-radius: 6px;
                 font-family: Inter, sans-serif;
                 font-size: 11px;
-                font-weight: 700;
+                font-weight: 800;
                 white-space: nowrap;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+                box-shadow: 0 4px 10px rgba(0,0,0,0.35);
                 cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 5px;
+                text-align: center;
                 pointer-events: auto;
+                line-height: 1.2;
               ">
-                <span style="background: ${col}; color: #ffffff; padding: 1px 5px; border-radius: 3px; font-weight: 800; font-size: 10px;">${p.zoneCode || 'ZONE'}</span>
-                <span style="font-weight: 700; color: ${isDark ? '#f1f5f9' : '#1e293b'};">${displayName}</span>
-                <span style="font-size: 10px; color: ${col}; font-weight: 600;">(${p.totalBuildings || 0})</span>
+                <span style="color: ${col}; font-weight: 900;">${p.zoneCode || ''}</span>
+                <span style="font-size: 9px; margin-left: 4px; padding: 1px 4px; background: ${col}25; color: ${col}; border-radius: 3px; text-transform: uppercase;">${crit}</span>
+                <div style="font-size: 10px; font-weight: 600; color: ${isDark ? '#94a3b8' : '#475569'}; margin-top: 1px;">
+                  ${p.name ? p.name.split(' ')[0] : ''}
+                </div>
               </div>
             `;
             const icon = L.divIcon({
               html: badgeHtml,
               className: 'zone-centroid-badge',
-              iconSize: [140, 30],
-              iconAnchor: [70, 15]
+              iconSize: [110, 36],
+              iconAnchor: [55, 18]
             });
             const marker = L.marker(center, { icon, interactive: true });
             marker.on('click', () => {
@@ -468,15 +475,11 @@ function DisasterMap() {
     const isBuildingVisible = (bldgId) => {
       if (viewLevel === 'BUILDINGS' || viewLevel === 'BOTH') return true;
       if (viewLevel === 'ZONES') {
-        if (!selectedZone) return true;
-        const cIds = Array.isArray(selectedZone.constituentBuildingIds)
-          ? selectedZone.constituentBuildingIds
-          : (Array.isArray(selectedZone.constituent_building_ids)
-            ? selectedZone.constituent_building_ids
-            : []);
-        return cIds.length === 0 || cIds.includes(bldgId);
+        if (!selectedZone) return false;
+        const cIds = selectedZone.constituentBuildingIds || [];
+        return cIds.includes(bldgId);
       }
-      return true;
+      return false;
     };
 
     // Helper: compute centroid point for polygon
@@ -526,28 +529,22 @@ function DisasterMap() {
         pointToLayer: (feat, latlng) => {
           const dClass = feat.properties?.damageClass || 'no-damage';
           const col = DAMAGE_COLORS[dClass] || '#94a3b8';
-          const bId = feat.properties?.buildingId || feat.properties?.id;
-          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
-          const isConstituent = selectedZone && cIds.includes(bId);
           return L.circleMarker(latlng, {
-            radius: isConstituent ? 9 : 7,
-            color: isConstituent ? '#ffffff' : '#0f172a',
-            weight: isConstituent ? 3 : 2,
+            radius: 7,
+            color: '#0f172a',
+            weight: 2,
             fillColor: col,
-            fillOpacity: selectedZone ? (isConstituent ? 0.95 : 0.30) : 0.88
+            fillOpacity: 0.88
           });
         },
         style: (feat) => {
           const dClass = feat.properties?.damageClass || 'no-damage';
           const col = DAMAGE_COLORS[dClass] || '#94a3b8';
-          const bId = feat.properties?.buildingId || feat.properties?.id;
-          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
-          const isConstituent = selectedZone && cIds.includes(bId);
           return {
-            color: isConstituent ? '#ffffff' : '#1e293b',
-            weight: isConstituent ? 3 : 1.6,
+            color: '#1e293b',
+            weight: 1.6,
             fillColor: col,
-            fillOpacity: selectedZone ? (isConstituent ? 0.90 : 0.25) : 0.65 // translucent so satellite imagery is never occluded
+            fillOpacity: 0.65 // translucent so satellite imagery is never occluded
           };
         },
         onEachFeature: (feat, layer) => {
@@ -626,28 +623,22 @@ function DisasterMap() {
         pointToLayer: (feat, latlng) => {
           const lvl = feat.properties?.priority_level || 'LOW';
           const col = PRIORITY_COLORS[lvl] || '#059669';
-          const bId = feat.properties?.building_id || feat.properties?.id;
-          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
-          const isConstituent = selectedZone && cIds.includes(bId);
           return L.circleMarker(latlng, {
-            radius: isConstituent ? 10 : 8,
-            color: isConstituent ? '#ffffff' : '#0f172a',
-            weight: isConstituent ? 3 : 2,
+            radius: 8,
+            color: '#0f172a',
+            weight: 2,
             fillColor: col,
-            fillOpacity: selectedZone ? (isConstituent ? 0.98 : 0.30) : 0.90
+            fillOpacity: 0.90
           });
         },
         style: (feat) => {
           const lvl = feat.properties?.priority_level || 'LOW';
           const col = PRIORITY_COLORS[lvl] || '#059669';
-          const bId = feat.properties?.building_id || feat.properties?.id;
-          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
-          const isConstituent = selectedZone && cIds.includes(bId);
           return {
-            color: isConstituent ? '#ffffff' : '#0f172a',
-            weight: isConstituent ? 3 : 2,
+            color: '#0f172a',
+            weight: 2,
             fillColor: col,
-            fillOpacity: selectedZone ? (isConstituent ? 0.92 : 0.25) : 0.70
+            fillOpacity: 0.70
           };
         },
         onEachFeature: (feat, layer) => {
@@ -928,7 +919,7 @@ function DisasterMap() {
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: tokens.bgPrimary, color: tokens.textPrimary, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 88px)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: tokens.bgPrimary, color: tokens.textPrimary, overflow: 'hidden' }}>
       
       {/* ============================================================ */}
       {/* LEFT COLUMN: Controls, Phases & Layer Toggles (270px)        */}
@@ -972,6 +963,63 @@ function DisasterMap() {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+        </div>
+
+        {/* Map Engine View: 3D Earth / 2D Map */}
+        <div>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+            Map Engine
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', backgroundColor: tokens.bgTertiary, padding: '3px', borderRadius: '6px', border: `1px solid ${tokens.border}` }}>
+            <button
+              onClick={() => {
+                setMapViewMode('3D');
+                if (window.__DRAS_CESIUM_VIEWER__ && !window.__DRAS_CESIUM_VIEWER__.isDestroyed()) {
+                  window.__DRAS_CESIUM_VIEWER__.resize();
+                }
+              }}
+              style={{
+                padding: '6px 4px',
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: mapViewMode === '3D' ? '#0284c7' : 'transparent',
+                color: mapViewMode === '3D' ? '#ffffff' : tokens.textSecondary,
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px'
+              }}
+            >
+              <Globe size={13} /> 3D Earth
+            </button>
+            <button
+              onClick={() => {
+                setMapViewMode('2D');
+                if (mapInstanceRef.current) {
+                  setTimeout(() => mapInstanceRef.current.invalidateSize(), 150);
+                }
+              }}
+              style={{
+                padding: '6px 4px',
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: mapViewMode === '2D' ? '#0284c7' : 'transparent',
+                color: mapViewMode === '2D' ? '#ffffff' : tokens.textSecondary,
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px'
+              }}
+            >
+              <MapIcon size={13} /> 2D Map
+            </button>
+          </div>
         </div>
 
         {/* Spatial View Mode: [ Buildings ] [ Zones ] [ Both ] */}
@@ -1364,8 +1412,117 @@ function DisasterMap() {
       {/* ============================================================ */}
       {/* CENTER COLUMN: Large Interactive Map Canvas (Flex-1)        */}
       {/* ============================================================ */}
-      <div style={{ flex: 1, position: 'relative', height: '100%' }}>
-        <div ref={mapContainerRef} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} />
+      <div style={{ flex: 1, position: 'relative', height: '100%', overflow: 'hidden' }}>
+        {/* 3D Cesium Earth Engine View */}
+        {mapViewMode === '3D' && (
+          <CesiumGlobe
+            selectedScenarioId={selectedScenarioId}
+            scenarios={scenarios}
+            onSelectScenario={(sId) => setSelectedScenarioId(sId)}
+            mapMode={mapMode}
+            setMapMode={setMapMode}
+            viewLevel={viewLevel}
+            layers={layers}
+            damageFilter={damageFilter}
+            priorityFilter={priorityFilter}
+            confidenceThreshold={confidenceThreshold}
+            selectedBuilding={selectedBuilding}
+            onSelectBuilding={(bldg) => setSelectedBuilding(bldg)}
+            selectedZone={selectedZone}
+            onSelectZone={(zone) => setSelectedZone(zone)}
+            activeRoute={activeRoute}
+            rawDataRef={rawDataRef}
+            dataVersion={dataVersion}
+            mapViewMode={mapViewMode}
+            setMapViewMode={(mode) => {
+              setMapViewMode(mode);
+              if (mode === '2D' && mapInstanceRef.current) {
+                setTimeout(() => mapInstanceRef.current.invalidateSize(), 150);
+              }
+            }}
+            presentationMode={presentationMode}
+            setPresentationMode={setPresentationMode}
+            isDark={isDark}
+            tokens={tokens}
+          />
+        )}
+
+        {/* 2D Leaflet Map View */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: mapViewMode === '2D' ? 10 : 0,
+            pointerEvents: mapViewMode === '2D' ? 'auto' : 'none',
+            visibility: mapViewMode === '2D' ? 'visible' : 'hidden'
+          }}
+        >
+          <div ref={mapContainerRef} style={{ width: '100%', height: '100%', backgroundColor: '#0f172a' }} />
+
+          {/* Floating 2D / 3D Mode Switcher Header */}
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            display: 'flex',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+            borderRadius: '24px',
+            padding: '3px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(8px)'
+          }}>
+            <button
+              onClick={() => {
+                setMapViewMode('2D');
+                if (mapInstanceRef.current) setTimeout(() => mapInstanceRef.current.invalidateSize(), 100);
+              }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '20px',
+                border: 'none',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <MapIcon size={13} /> 2D MAP
+            </button>
+            <button
+              onClick={() => {
+                setMapViewMode('3D');
+                if (window.__DRAS_CESIUM_VIEWER__ && !window.__DRAS_CESIUM_VIEWER__.isDestroyed()) {
+                  window.__DRAS_CESIUM_VIEWER__.resize();
+                }
+              }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '20px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: isDark ? '#94a3b8' : '#64748b',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Globe size={13} /> 3D EARTH
+            </button>
+          </div>
+        </div>
 
         {/* Dharali 2025 Compact Status Banner */}
         {selectedScenarioId === 4 && (
@@ -2040,12 +2197,12 @@ function DisasterMap() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
               <div style={{ padding: '6px 8px', backgroundColor: tokens.bgTertiary, borderRadius: '4px', border: `1px solid ${tokens.border}` }}>
                 <span style={{ fontSize: '9px', color: tokens.textSecondary, display: 'block' }}>Total Evaluated</span>
-                <strong style={{ fontSize: '12px', color: tokens.textPrimary }}>{selectedZone.totalBuildings} {selectedScenarioId === 3 ? 'Observations' : 'Buildings'}</strong>
+                <strong style={{ fontSize: '12px', color: tokens.textPrimary }}>{selectedZone.totalBuildings} Buildings</strong>
               </div>
               <div style={{ padding: '6px 8px', backgroundColor: isDark ? '#2a1a1a' : '#fef2f2', borderRadius: '4px', border: `1px solid ${isDark ? '#7f1d1d' : '#fee2e2'}` }}>
                 <span style={{ fontSize: '9px', color: isDark ? '#fca5a5' : '#991b1b', display: 'block' }}>Severe Impact</span>
                 <strong style={{ fontSize: '12px', color: '#dc2626' }}>
-                  {(selectedZone.destroyedCount || 0) + (selectedZone.majorDamageCount || 0)} {selectedScenarioId === 3 ? 'Points' : 'Structures'}
+                  {(selectedZone.destroyedCount || 0) + (selectedZone.majorDamageCount || 0)} Structures
                 </strong>
               </div>
               <div style={{ padding: '6px 8px', backgroundColor: isDark ? '#162438' : '#f0f9ff', borderRadius: '4px', border: `1px solid ${isDark ? '#1e3a8a' : '#e0f2fe'}` }}>
@@ -2148,56 +2305,46 @@ function DisasterMap() {
             </div>
 
             {/* Constituent Buildings Drill-down */}
-            {(() => {
-              const cIds = Array.isArray(selectedZone.constituentBuildingIds)
-                ? selectedZone.constituentBuildingIds
-                : (Array.isArray(selectedZone.constituent_building_ids)
-                  ? selectedZone.constituent_building_ids
-                  : (typeof selectedZone.constituentBuildingIds === 'string'
-                    ? JSON.parse(selectedZone.constituentBuildingIds || '[]')
-                    : []));
-              if (!cIds || cIds.length === 0) return null;
-              return (
-                <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: '8px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', marginBottom: '4px' }}>
-                    Constituent {selectedScenarioId === 3 ? 'Observations' : 'Structures'} ({cIds.length})
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
-                    {cIds.map(bId => {
-                      const bMatch = rawDataRef.current.damages?.features?.find(f => (f.properties?.buildingId || f.properties?.id) === bId);
-                      const dClass = bMatch?.properties?.damageClass || 'no-damage';
-                      return (
-                        <button
-                          key={bId}
-                          onClick={() => {
-                            const priMatch = rawDataRef.current.priorities?.features?.find(f => (f.properties?.building_id || f.properties?.id) === bId);
-                            if (bMatch) {
-                              setSelectedBuilding({
-                                ...bMatch.properties,
-                                geometry: bMatch.geometry,
-                                priorityInfo: priMatch?.properties
-                              });
-                            }
-                          }}
-                          style={{
-                            padding: '2px 5px',
-                            fontSize: '9px',
-                            fontWeight: 700,
-                            borderRadius: '3px',
-                            border: `1px solid ${DAMAGE_COLORS[dClass] || tokens.border}`,
-                            backgroundColor: DAMAGE_COLORS[dClass] ? `${DAMAGE_COLORS[dClass]}22` : tokens.bgTertiary,
-                            color: tokens.textPrimary,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          #{bId}
-                        </button>
-                      );
-                    })}
-                  </div>
+            {selectedZone.constituentBuildingIds && selectedZone.constituentBuildingIds.length > 0 && (
+              <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: '8px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Constituent Structures ({selectedZone.constituentBuildingIds.length})
                 </div>
-              );
-            })()}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                  {selectedZone.constituentBuildingIds.map(bId => {
+                    const bMatch = rawDataRef.current.damages?.features?.find(f => (f.properties?.buildingId || f.properties?.id) === bId);
+                    const dClass = bMatch?.properties?.damageClass || 'no-damage';
+                    return (
+                      <button
+                        key={bId}
+                        onClick={() => {
+                          const priMatch = rawDataRef.current.priorities?.features?.find(f => (f.properties?.building_id || f.properties?.id) === bId);
+                          if (bMatch) {
+                            setSelectedBuilding({
+                              ...bMatch.properties,
+                              geometry: bMatch.geometry,
+                              priorityInfo: priMatch?.properties
+                            });
+                          }
+                        }}
+                        style={{
+                          padding: '2px 5px',
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          borderRadius: '3px',
+                          border: `1px solid ${DAMAGE_COLORS[dClass] || tokens.border}`,
+                          backgroundColor: DAMAGE_COLORS[dClass] ? `${DAMAGE_COLORS[dClass]}22` : tokens.bgTertiary,
+                          color: tokens.textPrimary,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        #{bId}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Default Incident Snapshot & Operational Zones List */

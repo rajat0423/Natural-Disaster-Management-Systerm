@@ -37,4 +37,13 @@ $frontendProc = Start-Process -FilePath "cmd.exe" `
     -RedirectStandardError "$logDir\frontend-err.log" `
     -PassThru
 
-Write-Host "Process IDs: AI=$($aiProc.Id), Backend=$($backendProc.Id), Frontend=$($frontendProc.Id)"
+Write-Host "Starting Cloudflare Tunnel..."
+$tunnelLog = "$logDir\tunnel.log"
+$tunnelProc = Start-Process -FilePath "$PSScriptRoot\..\cloudflared.exe" `
+    -ArgumentList "tunnel --url http://localhost:5173" `
+    -WorkingDirectory "$PSScriptRoot\.." `
+    -RedirectStandardOutput $tunnelLog `
+    -RedirectStandardError "$logDir\tunnel-err.log" `
+    -PassThru
+
+Write-Host "Process IDs: AI=$($aiProc.Id), Backend=$($backendProc.Id), Frontend=$($frontendProc.Id), Tunnel=$($tunnelProc.Id)"

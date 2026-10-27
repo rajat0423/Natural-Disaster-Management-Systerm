@@ -56,59 +56,25 @@ export const cameraService = {
       if (!viewer.camera) return;
 
       const vp = SCENARIO_VIEWPOINTS[scenarioId] || SCENARIO_VIEWPOINTS[1];
-      const baseElev = vp.baseElevation || 0;
-      const targetAlt = baseElev + (vp.range * 0.95);
+      const targetAlt = Math.max(1200, (vp.range || 3000) * 0.95);
 
-      if (isInitial) {
-        // 1. Position camera in high Earth orbit
-        try {
-          viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(vp.lon + 15, vp.lat - 10, 15000000),
-            orientation: new Cesium.HeadingPitchRoll(0, Cesium.Math.toRadians(-85), 0)
-          });
-        } catch (e) {
-          // Fallback
-        }
-
-        // 2. Smoothly descend through atmosphere into the incident
-        setTimeout(() => {
-          try {
-            if (!viewer || (typeof viewer.isDestroyed === 'function' && viewer.isDestroyed())) return;
-            if (!viewer.camera) return;
-            viewer.camera.flyTo({
-              destination: Cesium.Cartesian3.fromDegrees(
-                vp.lon,
-                vp.lat - (vp.range / 111000) * 0.45,
-                targetAlt
-              ),
-              orientation: {
-                heading: Cesium.Math.toRadians(vp.heading),
-                pitch: Cesium.Math.toRadians(vp.pitch),
-                roll: 0.0
-              },
-              duration: 3.0,
-              easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT
-            });
-          } catch (err) {}
-        }, 350);
-      } else {
-        // Standard scenario transition
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(
-            vp.lon,
-            vp.lat - (vp.range / 111000) * 0.45,
-            targetAlt
-          ),
-          orientation: {
-            heading: Cesium.Math.toRadians(vp.heading),
-            pitch: Cesium.Math.toRadians(vp.pitch),
-            roll: 0.0
-          },
-          duration: 2.0,
-          easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT
-        });
-      }
-    } catch (e) {}
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(
+          vp.lon,
+          vp.lat - ((vp.range || 3000) / 111000) * 0.45,
+          targetAlt
+        ),
+        orientation: {
+          heading: Cesium.Math.toRadians(vp.heading || 0),
+          pitch: Cesium.Math.toRadians(vp.pitch || -42),
+          roll: 0.0
+        },
+        duration: isInitial ? 1.4 : 1.0,
+        easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT
+      });
+    } catch (err) {
+      console.warn('Camera transition error:', err);
+    }
   },
 
   /**
