@@ -90,6 +90,21 @@ public class CapAlertService {
         return alertRepository.save(alert);
     }
 
+    @Transactional
+    public List<Alert> cancelAllAlerts(Long scenarioId) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Alert> active = scenarioId != null 
+                ? alertRepository.findActiveAlertsByScenario(scenarioId, now)
+                : alertRepository.findActiveAlerts(now);
+        for (Alert a : active) {
+            a.setMsgType("Cancel");
+            a.setExpiresAt(now);
+            a.setHeadline("CANCELLED: " + a.getHeadline());
+            a.setInstruction("All clear issued. System alerts deactivated by command operator.");
+        }
+        return alertRepository.saveAll(active);
+    }
+
     /**
      * Converts a JTS Geometry to OASIS CAP v1.2 <polygon> format:
      * "latitude,longitude latitude,longitude latitude,longitude ..."

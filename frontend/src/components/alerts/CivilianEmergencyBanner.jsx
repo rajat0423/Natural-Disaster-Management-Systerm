@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, Volume2, VolumeX, ShieldAlert, LifeBuoy, X, ExternalLink, ChevronDown, ChevronUp, Radio } from 'lucide-react';
+import {
+  AlertTriangle, Volume2, VolumeX, ShieldAlert, LifeBuoy, X,
+  ExternalLink, ChevronDown, ChevronUp, BellOff, Radio, Eye, CheckCircle2
+} from 'lucide-react';
 import api from '../../services/api';
 
 /**
- * World-Class Civilian Emergency Alert Banner
- * Compliant with OASIS CAP v1.2 specifications and FEMA Integrated Public Alert & Warning System (IPAWS).
- * Features Web Audio API emergency tone synthesis (no external MP3 required).
+ * World-Class Civilian Emergency Alert Banner & Warning Capsule
+ * Compliant with OASIS CAP v1.2 and FEMA IPAWS.
+ * Features Web Audio API emergency siren oscillator with prominent turn-off controls.
  */
 export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = null }) {
   const [alerts, setAlerts] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [isDismissed, setIsDismissed] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [capModalAlert, setCapModalAlert] = useState(null);
   const [capXml, setCapXml] = useState('');
@@ -21,6 +25,16 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
   const oscRef = useRef(null);
   const gainRef = useRef(null);
   const timerRef = useRef(null);
+
+  // Check sessionStorage for dismissed status
+  useEffect(() => {
+    const dismissed = sessionStorage.getItem(`aidrs_alert_dismissed_${scenarioId}`);
+    if (dismissed === 'true') {
+      setIsDismissed(true);
+    } else {
+      setIsDismissed(false);
+    }
+  }, [scenarioId]);
 
   // 1. Fetch active alerts periodically
   useEffect(() => {
@@ -42,7 +56,7 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
     };
 
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 10000);
+    const interval = setInterval(fetchAlerts, 8000);
 
     return () => {
       isMounted = false;
@@ -66,7 +80,6 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
         ctx.resume();
       }
 
-      // Stop existing if any
       stopSiren();
 
       const osc = ctx.createOscillator();
@@ -74,9 +87,7 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
 
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(600, ctx.currentTime);
-
-      // Low volume baseline
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -85,7 +96,6 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
       oscRef.current = osc;
       gainRef.current = gain;
 
-      // Oscillate frequency (European Hi-Lo Emergency Tone)
       let high = false;
       timerRef.current = setInterval(() => {
         if (!oscRef.current || !ctx) return;
@@ -130,7 +140,26 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
     }
   };
 
-  const currentAlert = alerts[activeIdx] || alerts[0];
+  // Turn Off Alert (Mutes Siren & Hides Banner)
+  const handleTurnOffAlert = () => {
+    stopSiren();
+    setIsDismissed(true);
+    sessionStorage.setItem(`aidrs_alert_dismissed_${scenarioId}`, 'true');
+  };
+
+  // Turn off alert system-wide (Cancel in backend)
+  const handleSystemCancelAlert = async (alertId) => {
+    try {
+      await api.post(`/alerts/${alertId}/cancel`);
+      stopSiren();
+      setAlerts(prev => prev.filter(a => a.id !== alertId));
+      if (capModalAlert?.id === alertId) {
+        setCapModalAlert(null);
+      }
+    } catch (err) {
+      alert('Failed to cancel alert: ' + (err.response?.data?.message || err.message));
+    }
+  };
 
   const handleOpenCapModal = async (alert) => {
     setCapModalAlert(alert);
@@ -145,284 +174,299 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
     }
   };
 
+  const currentAlert = alerts[activeIdx] || alerts[0];
+
   if (!alerts || alerts.length === 0 || !currentAlert) {
     return null;
   }
 
+  // If user dismissed the alert, show a small discreet pill to re-open if needed
+  if (isDismissed) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 60,
+        right: 18,
+        zIndex: 1100,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 12px',
+        borderRadius: 20,
+        backgroundColor: 'rgba(15, 23, 42, 0.88)',
+        border: '1px solid rgba(239, 68, 68, 0.4)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
+        fontSize: 11,
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        color: '#f8fafc',
+        backdropFilter: 'blur(6px)',
+        cursor: 'pointer'
+      }}
+      onClick={() => {
+        setIsDismissed(false);
+        sessionStorage.removeItem(`aidrs_alert_dismissed_${scenarioId}`);
+      }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }} />
+        <span>Alert Silenced ({alerts.length}) — Click to view</span>
+      </div>
+    );
+  }
+
   const isExtreme = currentAlert.severity === 'Extreme';
   const isSevere = currentAlert.severity === 'Severe';
-  const bgGrad = isExtreme
-    ? 'linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #7f1d1d 100%)'
-    : isSevere
-    ? 'linear-gradient(90deg, #9a3412 0%, #c2410c 50%, #9a3412 100%)'
-    : 'linear-gradient(90deg, #065f46 0%, #047857 50%, #065f46 100%)';
-
   const borderColor = isExtreme ? '#ef4444' : isSevere ? '#f97316' : '#10b981';
 
   return (
     <>
-      {/* ─── Global Floating Alert Banner ─── */}
+      {/* ─── Floating Emergency Warning Capsule (Upper Right, non-blocking) ─── */}
       <div style={{
         position: 'fixed',
-        top: 52, // Directly beneath TopBar (height: 52px)
-        left: 0,
-        right: 0,
-        zIndex: 998,
-        background: bgGrad,
-        borderBottom: `2px solid ${borderColor}`,
+        top: 60,
+        right: 20,
+        zIndex: 1100,
+        maxWidth: 580,
+        width: 'calc(100vw - 40px)',
+        backgroundColor: '#0f172a',
+        border: `2px solid ${borderColor}`,
+        borderRadius: 10,
         color: '#ffffff',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.45)',
-        fontFamily: 'Inter, -apple-system, sans-serif',
-        transition: 'all 0.3s ease',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.65)',
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        overflow: 'hidden',
+        backdropFilter: 'blur(8px)',
+        transition: 'all 0.25s ease'
       }}>
-        {isCollapsed ? (
-          // Compact Minimized Bar
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '6px 20px',
-            fontSize: '12px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{
-                display: 'inline-block',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: '#ef4444',
-                animation: 'pulse 1.2s infinite'
-              }} />
-              <strong style={{ letterSpacing: '0.04em' }}>[CAP 1.2 ALERT ACTIVE]</strong>
-              <span>{currentAlert.headline}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <button
-                onClick={() => setIsCollapsed(false)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: 'none',
-                  color: '#fff',
-                  borderRadius: '4px',
-                  padding: '3px 8px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                Expand <ChevronDown size={13} />
-              </button>
-            </div>
+        {/* Banner Top Header */}
+        <div style={{
+          padding: '8px 14px',
+          background: isExtreme
+            ? 'linear-gradient(90deg, #991b1b 0%, #7f1d1d 100%)'
+            : 'linear-gradient(90deg, #c2410c 0%, #9a3412 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: `1px solid ${borderColor}55`
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              display: 'inline-block',
+              width: 9,
+              height: 9,
+              borderRadius: '50%',
+              backgroundColor: '#fff',
+              boxShadow: '0 0 8px #fff'
+            }} />
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              🚨 OASIS CAP 1.2 PUBLIC EMERGENCY ALERT
+            </span>
+            <span style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 6px',
+              borderRadius: 4,
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              color: '#fff'
+            }}>
+              {currentAlert.severity}
+            </span>
           </div>
-        ) : (
-          // Full Emergency Command Banner
-          <div style={{
-            padding: '10px 20px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}>
-            {/* Left: Icon & Core Alert Message */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: '1 1 500px' }}>
-              <div style={{
-                background: 'rgba(0, 0, 0, 0.3)',
-                padding: '8px',
-                borderRadius: '8px',
+
+          {/* Action Buttons: Siren, Turn Off, Collapse */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Siren Toggle */}
+            <button
+              onClick={toggleSiren}
+              style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                <AlertTriangle size={24} color="#fef08a" />
-              </div>
+                gap: 4,
+                padding: '3px 8px',
+                borderRadius: 4,
+                backgroundColor: isMuted ? 'rgba(0,0,0,0.35)' : '#ffffff',
+                color: isMuted ? '#f8fafc' : '#b91c1c',
+                border: 'none',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title={isMuted ? 'Turn on emergency siren sound' : 'Mute emergency siren'}
+            >
+              {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+              {isMuted ? 'Unmute' : 'Siren ON'}
+            </button>
 
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                  <span style={{
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    border: '1px solid rgba(255,255,255,0.25)'
-                  }}>
-                    {currentAlert.severity} &bull; {currentAlert.urgency}
-                  </span>
-                  <span style={{ fontSize: '11px', opacity: 0.9 }}>
-                    {currentAlert.identifier} &bull; Sender: {currentAlert.sender}
-                  </span>
-                  {alerts.length > 1 && (
-                    <span style={{ fontSize: '10px', opacity: 0.8, background: 'rgba(255,255,255,0.15)', padding: '1px 6px', borderRadius: '10px' }}>
-                      Alert {activeIdx + 1} of {alerts.length}
-                    </span>
-                  )}
-                </div>
+            {/* Turn Off Alert Button */}
+            <button
+              onClick={handleTurnOffAlert}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 8px',
+                borderRadius: 4,
+                backgroundColor: '#dc2626',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Turn off this alert banner"
+            >
+              <BellOff size={13} />
+              Turn Off Alert
+            </button>
 
-                <div style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em', marginBottom: '2px' }}>
-                  🚨 {currentAlert.headline}
-                </div>
+            {/* Collapse toggle */}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px'
+              }}
+              title={isCollapsed ? 'Expand details' : 'Collapse'}
+            >
+              {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+          </div>
+        </div>
 
-                <div style={{ fontSize: '12px', opacity: 0.95, lineHeight: 1.35 }}>
-                  {currentAlert.instruction || currentAlert.description}
-                </div>
-              </div>
+        {/* Banner Body (if not collapsed) */}
+        {!isCollapsed && (
+          <div style={{ padding: '12px 14px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35, marginBottom: 6, color: '#f8fafc' }}>
+              {currentAlert.headline}
             </div>
 
-            {/* Right: Quick Actions & Siren Toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              {/* Audio Siren Toggle */}
-              <button
-                onClick={toggleSiren}
-                title={isMuted ? 'Sound Audible Emergency Siren' : 'Mute Emergency Siren'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: isMuted ? 'rgba(0, 0, 0, 0.35)' : '#ef4444',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  color: '#ffffff',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  boxShadow: isMuted ? 'none' : '0 0 12px #ef4444'
-                }}
-              >
-                {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                <span>{isMuted ? 'Sound Siren' : 'MUTE SIREN'}</span>
-              </button>
+            <div style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.45, marginBottom: 10 }}>
+              {currentAlert.description}
+            </div>
 
-              {/* View Official CAP 1.2 XML */}
-              <button
-                onClick={() => handleOpenCapModal(currentAlert)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.25)',
-                  color: '#ffffff',
-                  padding: '6px 11px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 500
-                }}
-              >
-                <Radio size={14} /> CAP 1.2 Spec
-              </button>
+            {currentAlert.instruction && (
+              <div style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                borderLeft: '3px solid #ef4444',
+                padding: '6px 10px',
+                borderRadius: '0 4px 4px 0',
+                fontSize: 11,
+                color: '#fca5a5',
+                marginBottom: 10
+              }}>
+                <strong>Instruction:</strong> {currentAlert.instruction}
+              </div>
+            )}
 
-              {/* One-Tap SOS Modal Button */}
-              {onOpenSos && (
+            {/* Bottom Controls */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: 8,
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              fontSize: 11
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{currentAlert.identifier}</span>
+                <span>·</span>
+                <span>Urgency: <strong>{currentAlert.urgency}</strong></span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Civilian SOS Trigger */}
+                {onOpenSos && (
+                  <button
+                    onClick={onOpenSos}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 10px',
+                      borderRadius: 4,
+                      backgroundColor: '#ef4444',
+                      color: '#fff',
+                      border: 'none',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <LifeBuoy size={12} />
+                    Report SOS
+                  </button>
+                )}
+
+                {/* Inspect CAP 1.2 XML */}
                 <button
-                  onClick={onOpenSos}
+                  onClick={() => handleOpenCapModal(currentAlert)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '5px',
-                    background: '#dc2626',
-                    border: '1px solid #f87171',
-                    color: '#ffffff',
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.5)'
+                    gap: 4,
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    color: '#f8fafc',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer'
                   }}
                 >
-                  <LifeBuoy size={14} /> ONE-TAP SOS
+                  <Eye size={12} />
+                  CAP XML
                 </button>
-              )}
-
-              {/* Next Alert cycle if multiple */}
-              {alerts.length > 1 && (
-                <button
-                  onClick={() => setActiveIdx((activeIdx + 1) % alerts.length)}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 600
-                  }}
-                >
-                  Next &rarr;
-                </button>
-              )}
-
-              {/* Minimize */}
-              <button
-                onClick={() => setIsCollapsed(true)}
-                title="Minimize banner"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                <ChevronUp size={16} />
-              </button>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* ─── OASIS CAP v1.2 XML / JSON Inspector Modal ─── */}
+      {/* ─── MODAL: CAP 1.2 INSPECTOR ─── */}
       {capModalAlert && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          zIndex: 9999,
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(5px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px'
+          zIndex: 9999,
+          padding: 20
         }}>
           <div style={{
-            background: '#0f172a',
+            backgroundColor: '#0f172a',
             border: '1px solid #334155',
-            borderRadius: '12px',
+            borderRadius: 12,
             width: '100%',
-            maxWidth: '800px',
-            maxHeight: '85vh',
+            maxWidth: 720,
+            maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
           }}>
             {/* Modal Header */}
             <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #1e293b',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '14px 20px',
-              borderBottom: '1px solid #1e293b',
-              background: '#0a0f1d'
+              backgroundColor: '#1e293b'
             }}>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
-                  OASIS CAP v1.2 Standard Protocol Document
-                </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                  Identifier: {capModalAlert.identifier} &bull; Compliant with ITU-T X.1303 & FEMA IPAWS
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShieldAlert size={20} color="#ef4444" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                  OASIS CAP v1.2 Protocol Inspector
+                </h3>
               </div>
               <button
                 onClick={() => setCapModalAlert(null)}
@@ -432,74 +476,69 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
               </button>
             </div>
 
-            {/* Modal Body: XML Viewer */}
-            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-              {loadingCap ? (
-                <div style={{ color: '#94a3b8', textAlign: 'center', padding: '30px' }}>Loading CAP 1.2 XML...</div>
-              ) : (
-                <pre style={{
-                  background: '#020617',
-                  border: '1px solid #1e293b',
-                  borderRadius: '6px',
-                  padding: '14px',
-                  fontSize: '11px',
-                  fontFamily: 'Consolas, monospace',
-                  color: '#38bdf8',
-                  whiteSpace: 'pre-wrap',
-                  overflowX: 'auto',
-                  lineHeight: 1.45
-                }}>
-                  {capXml}
-                </pre>
-              )}
+            {/* XML Document */}
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+              <pre style={{
+                margin: 0,
+                padding: 14,
+                backgroundColor: '#020617',
+                border: '1px solid #1e293b',
+                borderRadius: 8,
+                fontSize: 11,
+                lineHeight: 1.5,
+                color: '#38bdf8',
+                fontFamily: 'Consolas, Monaco, monospace',
+                overflowX: 'auto',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {loadingCap ? 'Loading OASIS CAP v1.2 XML from backend...' : capXml}
+              </pre>
             </div>
 
-            {/* Modal Footer */}
+            {/* Modal Actions */}
             <div style={{
               padding: '12px 20px',
               borderTop: '1px solid #1e293b',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: '#0a0f1d'
+              backgroundColor: '#131d33'
             }}>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
-                Broadcast Footprint: {capModalAlert.targetZoneId ? `Linked to Operational Zone #${capModalAlert.targetZoneId}` : 'Regional Corridor'}
-              </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(capXml);
-                    alert('CAP 1.2 XML copied to clipboard.');
-                  }}
-                  style={{
-                    background: '#1e293b',
-                    border: '1px solid #334155',
-                    color: '#f8fafc',
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Copy XML
-                </button>
-                <button
-                  onClick={() => setCapModalAlert(null)}
-                  style={{
-                    background: '#0284c7',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+              <button
+                onClick={() => handleSystemCancelAlert(capModalAlert.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  backgroundColor: '#7f1d1d',
+                  color: '#fca5a5',
+                  border: '1px solid #991b1b',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <BellOff size={14} />
+                Cancel Alert System-wide
+              </button>
+
+              <button
+                onClick={() => setCapModalAlert(null)}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: 6,
+                  backgroundColor: '#3b82f6',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

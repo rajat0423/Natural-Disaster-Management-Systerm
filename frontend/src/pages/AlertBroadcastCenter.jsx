@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Radio, AlertTriangle, Send, ShieldAlert, CheckCircle2, Download, Copy,
-  RefreshCw, Volume2, Globe, Clock, Layers, Filter, Eye, XCircle, Zap
+  RefreshCw, Volume2, Globe, Clock, Layers, Filter, Eye, XCircle, Zap, BellOff
 } from 'lucide-react';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -149,6 +149,18 @@ export default function AlertBroadcastCenter() {
     }
   };
 
+  // Turn Off All Alerts
+  const handleTurnOffAllAlerts = async () => {
+    if (!window.confirm('Are you sure you want to deactivate and turn off all active alerts for this scenario?')) return;
+    try {
+      await api.post(`/alerts/cancel-all?scenarioId=${scenarioId}`);
+      sessionStorage.setItem(`aidrs_alert_dismissed_${scenarioId}`, 'true');
+      fetchData();
+    } catch (e) {
+      alert('Failed to turn off alerts: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
   return (
     <div style={{
       maxWidth: '1440px',
@@ -225,6 +237,26 @@ export default function AlertBroadcastCenter() {
             }}
           >
             <RefreshCw size={14} /> Refresh
+          </button>
+
+          <button
+            onClick={handleTurnOffAllAlerts}
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              color: '#ef4444',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+            title="Silence sirens and deactivate all active CAP alerts for this scenario"
+          >
+            <BellOff size={14} /> Turn Off Alerts
           </button>
         </div>
       </div>

@@ -165,6 +165,18 @@ public class AlertController {
     }
 
     /**
+     * Master Switch: Turn off and cancel all active alerts for scenario
+     */
+    @PostMapping("/cancel-all")
+    public ResponseEntity<Map<String, Object>> cancelAllAlerts(@RequestParam(required = false) Long scenarioId) {
+        List<Alert> cancelled = alertService.cancelAllAlerts(scenarioId);
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("cancelledCount", cancelled.size());
+        res.put("message", "All active alerts have been deactivated and silenced.");
+        return ResponseEntity.ok(res);
+    }
+
+    /**
      * Get multi-channel delivery metrics for an alert
      */
     @GetMapping("/{id}/deliveries")

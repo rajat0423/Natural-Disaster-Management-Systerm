@@ -116,6 +116,8 @@ function DisasterMap() {
   const [selectedZone, setSelectedZone] = useState(null);
   const [activeRoute, setActiveRoute] = useState(null);
   const [isLegendCollapsed, setIsLegendCollapsed] = useState(false);
+  const [activeAlertsList, setActiveAlertsList] = useState([]);
+  const [isAlertDrawerOpen, setIsAlertDrawerOpen] = useState(false);
 
   // Raw GeoJSON Data Cache
   const rawDataRef = useRef({
@@ -201,7 +203,7 @@ function DisasterMap() {
     layerGroupsRef.current.selectionHighlight.clearLayers();
 
     try {
-      const [scenResp, damagesResp, priResp, bldgsResp, roadsResp, hospResp, sheltResp, sumResp, zonesResp, hazardsResp, alertsResp, unitsResp] = await Promise.all([
+      const [scenResp, damagesResp, priResp, bldgsResp, roadsResp, hospResp, sheltResp, sumResp, zonesResp, hazardsResp, alertsResp, unitsResp, alertsListResp] = await Promise.all([
         api.get(`/scenarios/${scenarioId}`).catch(() => ({ data: null })),
         api.get(`/map/damages?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
         api.get(`/priorities/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
@@ -213,7 +215,8 @@ function DisasterMap() {
         api.get(`/map/zones?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
         api.get(`/map/hazards?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
         api.get(`/alerts/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
-        api.get(`/units/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } }))
+        api.get(`/units/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
+        api.get(`/alerts?activeOnly=true&scenarioId=${scenarioId}`).catch(() => ({ data: [] }))
       ]);
 
       rawDataRef.current = {
@@ -231,6 +234,7 @@ function DisasterMap() {
       };
 
       setSummary(sumResp.data);
+      setActiveAlertsList(Array.isArray(alertsListResp.data) ? alertsListResp.data : []);
       setDataVersion(v => v + 1);
       renderLayers();
     } catch (err) {
@@ -1011,6 +1015,62 @@ function DisasterMap() {
     }
   }
 
+  
+  // Center / Fly to Alert on Map (2D or 3D)
+  const centerMapOnAlert = (alert) => {
+    let lat = null, lon = null;
+    if (alert.geometry && alert.geometry.coordinates) {
+      const coords = alert.geometry.type === 'MultiPolygon' 
+        ? alert.geometry.coordinates[0]?.[0]
+        : alert.geometry.coordinates?.[0];
+      if (coords && coords.length > 0) {
+        let sumX = 0, sumY = 0;
+        coords.forEach(pt => { sumX += pt[0]; sumY += pt[1]; });
+        lon = sumX / coords.length;
+        lat = sumY / coords.length;
+      }
+    }
+
+    if (lat && lon) {
+      if (mapViewMode === '2D' && mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([lat, lon], 14, { duration: 1.2 });
+      } else if (mapViewMode === '3D' && window.__DRAS_CESIUM_VIEWER__) {
+        const viewer = window.__DRAS_CESIUM_VIEWER__;
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(lon, lat, 2600),
+          orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0.0
+          },
+          duration: 1.5
+        });
+      }
+    }
+  };
+
+  // Turn off single alert on map
+  const handleTurnOffAlertOnMap = async (alertId) => {
+    try {
+      await api.post(`/alerts/${alertId}/cancel`);
+      setActiveAlertsList(prev => prev.filter(a => a.id !== alertId));
+      loadScenarioData(selectedScenarioId);
+    } catch (e) {
+      alert('Failed to turn off alert: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
+  // Turn off all alerts on map
+  const handleTurnOffAllAlertsOnMap = async () => {
+    try {
+      await api.post(`/alerts/cancel-all?scenarioId=${selectedScenarioId}`);
+      setActiveAlertsList([]);
+      loadScenarioData(selectedScenarioId);
+    } catch (e) {
+      alert('Failed to turn off alerts: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
   function clearRoute() {
     layerGroupsRef.current.routeGlow.clearLayers();
     layerGroupsRef.current.route.clearLayers();
@@ -1541,6 +1601,165 @@ function DisasterMap() {
       {/* CENTER COLUMN: Large Interactive Map Canvas (Flex-1)        */}
       {/* ============================================================ */}
       <div style={{ flex: 1, position: 'relative', height: '100%', overflow: 'hidden' }}>
+
+        {/* On-Map Interactive CAP Alerts Badge & Expandable Drawer */}
+        {activeAlertsList.length > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '18px',
+            zIndex: 1050,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '8px',
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+          }}>
+            <button
+              onClick={() => setIsAlertDrawerOpen(!isAlertDrawerOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                padding: '7px 14px',
+                borderRadius: '20px',
+                border: '1.5px solid #ef4444',
+                backgroundColor: isDark ? 'rgba(153, 27, 27, 0.95)' : '#ef4444',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(239, 68, 68, 0.45)',
+                backdropFilter: 'blur(8px)',
+                letterSpacing: '0.02em'
+              }}
+              title="Click to view and inspect active CAP alerts on map"
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#fff' }} />
+              <span>🚨 Active Alerts ({activeAlertsList.length})</span>
+              {isAlertDrawerOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+
+            {isAlertDrawerOpen && (
+              <div style={{
+                width: 360,
+                maxHeight: 'calc(100vh - 240px)',
+                overflowY: 'auto',
+                backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                border: `1.5px solid ${tokens.border}`,
+                borderRadius: 10,
+                padding: 14,
+                boxShadow: '0 16px 36px rgba(0, 0, 0, 0.65)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottom: `1px solid ${tokens.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShieldAlert size={15} color="#ef4444" />
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#ef4444' }}>
+                      Active CAP 1.2 Broadcasts
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleTurnOffAllAlertsOnMap}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#ef4444',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Silence and deactivate all active scenario alerts"
+                  >
+                    Turn Off All
+                  </button>
+                </div>
+
+                {activeAlertsList.map(alt => (
+                  <div key={alt.id} style={{
+                    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                    border: `1px solid ${tokens.border}`,
+                    borderRadius: 6,
+                    padding: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: tokens.accent, fontFamily: 'monospace' }}>
+                        {alt.identifier}
+                      </span>
+                      <span style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        backgroundColor: alt.severity === 'Extreme' ? '#ef4444' : '#f97316',
+                        color: '#fff'
+                      }}>
+                        {alt.severity}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 12, fontWeight: 700, color: tokens.text, lineHeight: 1.3 }}>
+                      {alt.headline}
+                    </div>
+
+                    <div style={{ fontSize: 10.5, color: tokens.textSec, lineHeight: 1.4 }}>
+                      {alt.instruction || alt.description}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      <button
+                        onClick={() => centerMapOnAlert(alt)}
+                        style={{
+                          flex: 1,
+                          padding: '5px 8px',
+                          borderRadius: 4,
+                          backgroundColor: tokens.accent,
+                          color: '#fff',
+                          border: 'none',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4
+                        }}
+                      >
+                        <span>🎯</span> Center on Map
+                      </button>
+
+                      <button
+                        onClick={() => handleTurnOffAlertOnMap(alt.id)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: 4,
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                          color: '#ef4444',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Turn Off
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 3D Cesium Earth Engine View */}
         {mapViewMode === '3D' && (
           <CesiumGlobe

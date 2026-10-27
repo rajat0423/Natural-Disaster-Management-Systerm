@@ -18,15 +18,15 @@ import {
 } from 'lucide-react';
 
 const getNavItems = (scenarioId = 2) => [
-  { to: `/scenario/${scenarioId}/map`,       label: 'Operations',   icon: Map },
-  { to: `/scenario/${scenarioId}/dashboard`, label: 'Dashboard',    icon: LayoutDashboard },
-  { to: `/scenario/${scenarioId}/alerts`,    label: 'Alerts (CAP)', icon: BellRing },
-  { to: `/scenario/${scenarioId}/cad`,       label: 'CAD Dispatch', icon: Truck },
-  { to: '/scenarios',                        label: 'Scenarios',    icon: LocateFixed },
-  { to: `/scenario/${scenarioId}/reports`,   label: 'Reports',      icon: FileBarChart },
-  { to: '/research',                         label: 'Research',     icon: FlaskConical },
-  { to: '/model-training',                   label: 'Model V4',     icon: Cpu },
-  { to: '/system',                           label: 'System',       icon: Activity },
+  { to: `/scenario/${scenarioId}/map`,       label: 'Operations',     icon: Map },
+  { to: `/scenario/${scenarioId}/cad`,       label: 'CAD & Dispatch', icon: Truck },
+  { to: `/scenario/${scenarioId}/alerts`,    label: 'Alerts (CAP)',   icon: BellRing },
+  { to: `/scenario/${scenarioId}/dashboard`, label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/scenarios',                        label: 'Scenarios',      icon: LocateFixed },
+  { to: `/scenario/${scenarioId}/reports`,   label: 'Reports',        icon: FileBarChart },
+  { to: '/research',                         label: 'Research',       icon: FlaskConical },
+  { to: '/model-training',                   label: 'Model V4',       icon: Cpu },
+  { to: '/system',                           label: 'System',         icon: Activity },
 ];
 
 const TopBar = ({ onOpenSos }) => {
