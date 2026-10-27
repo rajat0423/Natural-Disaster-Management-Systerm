@@ -17,6 +17,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { Layers, ChevronRight, X, Satellite } from 'lucide-react';
 
 const DAMAGE_COLORS = {
   'no-damage': '#10b981',
