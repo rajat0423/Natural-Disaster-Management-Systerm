@@ -101,10 +101,10 @@ export default function GlobeSearch({
   return (
     <div style={{
       position: 'absolute',
-      top: '16px',
+      top: '12px',
       left: '16px',
       zIndex: 1000,
-      width: '300px',
+      width: 'min(270px, 20vw)',
       fontFamily: fontFam
     }}>
       {/* Search Input Bar */}

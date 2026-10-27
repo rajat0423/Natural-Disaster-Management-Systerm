@@ -143,6 +143,7 @@ function DisasterMap() {
   const [selectedUnitForDispatch, setSelectedUnitForDispatch] = useState('');
   const [dispatchNotes, setDispatchNotes] = useState('');
   const [availableUnitsList, setAvailableUnitsList] = useState([]);
+  const [dispatchServiceFilter, setDispatchServiceFilter] = useState('ALL');
   const [actionSuccessNotice, setActionSuccessNotice] = useState(null);
 
   // Raw GeoJSON Data Cache
@@ -2707,68 +2708,69 @@ function DisasterMap() {
           </div>
         )}
 
-        {/* 3. Floating 2D / 3D Switcher at Top Right (Matches Screenshot 3) */}
-        <div style={{
-          position: 'absolute',
-          top: '12px',
-          right: '54px',
-          zIndex: 1040,
-          display: 'flex',
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-          border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-          borderRadius: '20px',
-          padding: '2px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          backdropFilter: 'blur(8px)'
-        }}>
-          <button
-            onClick={() => {
-              setMapViewMode('2D');
-              if (mapInstanceRef.current) {
-                setTimeout(() => { try { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); } catch (e) {} }, 100);
-              }
-            }}
-            style={{
-              padding: '5px 12px',
-              borderRadius: '16px',
-              border: 'none',
-              backgroundColor: mapViewMode === '2D' ? '#0284c7' : 'transparent',
-              color: mapViewMode === '2D' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
-              fontSize: '11px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px'
-            }}
-          >
-            <MapIcon size={12} /> 2D Map
-          </button>
-          <button
-            onClick={() => {
-              setMapViewMode('3D');
-              if (window.__DRAS_CESIUM_VIEWER__ && !window.__DRAS_CESIUM_VIEWER__.isDestroyed()) {
-                window.__DRAS_CESIUM_VIEWER__.resize();
-              }
-            }}
-            style={{
-              padding: '5px 12px',
-              borderRadius: '16px',
-              border: 'none',
-              backgroundColor: mapViewMode === '3D' ? '#0284c7' : 'transparent',
-              color: mapViewMode === '3D' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
-              fontSize: '11px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px'
-            }}
-          >
-            <Globe size={12} /> 3D Globe
-          </button>
-        </div>
-
+        {/* 3. Floating 2D / 3D Switcher at Top Right (Active in 2D mode; CesiumControls handles 3D HUD) */}
+        {mapViewMode === '2D' && (
+          <div style={{
+            position: 'absolute',
+            top: '12px',
+            right: '16px',
+            zIndex: 1040,
+            display: 'flex',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+            borderRadius: '20px',
+            padding: '2px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            backdropFilter: 'blur(8px)'
+          }}>
+            <button
+              onClick={() => {
+                setMapViewMode('2D');
+                if (mapInstanceRef.current) {
+                  setTimeout(() => { try { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); } catch (e) {} }, 100);
+                }
+              }}
+              style={{
+                padding: '5px 12px',
+                borderRadius: '16px',
+                border: 'none',
+                backgroundColor: mapViewMode === '2D' ? '#0284c7' : 'transparent',
+                color: mapViewMode === '2D' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <MapIcon size={12} /> 2D Map
+            </button>
+            <button
+              onClick={() => {
+                setMapViewMode('3D');
+                if (window.__DRAS_CESIUM_VIEWER__ && !window.__DRAS_CESIUM_VIEWER__.isDestroyed()) {
+                  window.__DRAS_CESIUM_VIEWER__.resize();
+                }
+              }}
+              style={{
+                padding: '5px 12px',
+                borderRadius: '16px',
+                border: 'none',
+                backgroundColor: mapViewMode === '3D' ? '#0284c7' : 'transparent',
+                color: mapViewMode === '3D' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <Globe size={12} /> 3D Globe
+            </button>
+          </div>
+        )}
 {/* 3D Cesium Earth Engine View */}
         {mapViewMode === '3D' && (
           <CesiumGlobe
@@ -4185,13 +4187,55 @@ function DisasterMap() {
               </span>
             </div>
 
+            {/* Service Category Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 700, color: isDark ? '#94a3b8' : '#475569', textTransform: 'uppercase' }}>
+                Select Service Category
+              </label>
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+                {[
+                  { id: 'ALL', label: 'All Services' },
+                  { id: 'FIRE', label: '🚒 Fire & Rescue' },
+                  { id: 'EMS', label: '🚑 Medical EMS' },
+                  { id: 'SAR', label: '🦺 Urban SAR' },
+                  { id: 'POLICE', label: '🚓 Police Evac' }
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setDispatchServiceFilter(s.id)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: `1.5px solid ${dispatchServiceFilter === s.id ? '#059669' : (isDark ? '#334155' : '#cbd5e1')}`,
+                      backgroundColor: dispatchServiceFilter === s.id ? (isDark ? '#064e3b' : '#ecfdf5') : 'transparent',
+                      color: dispatchServiceFilter === s.id ? '#059669' : (isDark ? '#94a3b8' : '#64748b'),
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Available Units Selection */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '10px', fontWeight: 700, color: isDark ? '#94a3b8' : '#475569', textTransform: 'uppercase' }}>
                 Select Tactical Response Unit
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
-                {availableUnitsList.map(unit => {
+                {availableUnitsList.filter(unit => {
+                  if (dispatchServiceFilter === 'ALL') return true;
+                  if (dispatchServiceFilter === 'FIRE') return ['FIRE_ENGINE', 'LADDER_TRUCK', 'WATER_TENDER'].includes(unit.unitType);
+                  if (dispatchServiceFilter === 'EMS') return ['AMBULANCE', 'MOBILE_ICU'].includes(unit.unitType);
+                  if (dispatchServiceFilter === 'SAR') return ['RESCUE_SQUAD', 'USAR_TEAM'].includes(unit.unitType);
+                  if (dispatchServiceFilter === 'POLICE') return ['TACTICAL_PATROL', 'TRAFFIC_ESCORT'].includes(unit.unitType);
+                  return true;
+                }).map(unit => {
                   const isAvail = unit.status === 'AVAILABLE';
                   const isSelected = selectedUnitForDispatch === unit.id;
                   return (
