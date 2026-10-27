@@ -439,18 +439,7 @@ export default function CesiumGlobe({
   useEffect(() => {
     const ds = dataSourcesRef.current.alerts;
     ds.entities.removeAll();
-
-    if (layers.alerts === false) {
-      ds.show = false;
-      return;
-    }
-    ds.show = true;
-
-    const alerts = rawDataRef.current?.alerts?.features || [];
-    const entities = convertAlertsTo3DEntities(alerts);
-    for (const ent of entities) {
-      ds.entities.add(ent);
-    }
+    // As requested: Do NOT plot CAP polygon geometry on 3D globe — show alerts in UI only
   }, [layers.alerts, selectedScenarioId, dataVersion]);
 
   // 9. Render / Update CAD Tactical Fleet Telemetry in 3D

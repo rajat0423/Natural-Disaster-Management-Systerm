@@ -82,27 +82,6 @@ const TopBar = ({ onOpenSos }) => {
 
       {/* ─── Right Side ─── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: SPACE[2], flexShrink: 0, marginLeft: 8 }}>
-        {/* Civilian One-Tap SOS Button */}
-        {onOpenSos && (
-          <button
-            onClick={onOpenSos}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '4px 10px', borderRadius: RADIUS.full,
-              backgroundColor: '#ef4444',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '11px', fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.35)',
-              letterSpacing: '0.02em'
-            }}
-          >
-            <LifeBuoy size={12} />
-            SOS
-          </button>
-        )}
-
         {/* Active scenario pill */}
         {activeScenario && (
           <div style={{

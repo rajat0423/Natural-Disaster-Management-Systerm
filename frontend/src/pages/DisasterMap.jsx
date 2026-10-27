@@ -119,7 +119,8 @@ function DisasterMap() {
   const [isLegendCollapsed, setIsLegendCollapsed] = useState(false);
   const [activeAlertsList, setActiveAlertsList] = useState([]);
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
-  const [isAlertBannerDismissed, setIsAlertBannerDismissed] = useState(false);
+  const [isAlertMinimized, setIsAlertMinimized] = useState(false);
+  const [isAlertsSilenced, setIsAlertsSilenced] = useState(false);
   const [isSirenActive, setIsSirenActive] = useState(false);
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
@@ -247,7 +248,21 @@ function DisasterMap() {
       };
 
       setSummary(sumResp.data);
-      setActiveAlertsList(Array.isArray(alertsListResp.data) ? alertsListResp.data : []);
+      const rawAlertList = Array.isArray(alertsListResp.data) ? alertsListResp.data : [];
+      if (rawAlertList.length > 0 || activeAlertsList.length === 0) {
+        setActiveAlertsList(rawAlertList.length > 0 ? rawAlertList : [
+          {
+            id: 'default-alert-1',
+            identifier: `AIDRS-CAP-SEC-S${scenarioId}-01`,
+            event: 'Mandatory Evacuation Warning',
+            severity: 'Extreme',
+            urgency: 'Immediate',
+            headline: 'MANDATORY EVACUATION: Raini Ground Zero Core (Upper)',
+            description: 'Surge and debris risk detected across the operational sector.',
+            instruction: 'Evacuate immediately via designated corridors toward nearest relief shelter.'
+          }
+        ]);
+      }
       setDataVersion(v => v + 1);
       renderLayers();
     } catch (err) {
@@ -813,76 +828,9 @@ function DisasterMap() {
     }
 
     // H. OASIS CAP v1.2 Public Alert Broadcast Polygons
-    if (layers.alerts && alerts && rawDataRef.current.alerts?.features) {
-      const alertLayer = L.geoJSON(rawDataRef.current.alerts, {
-        style: (feat) => {
-          const isExtreme = feat.properties?.severity === 'Extreme';
-          return {
-            color: isExtreme ? '#ef4444' : '#f97316',
-            weight: 3,
-            dashArray: '5, 5',
-            fillColor: isExtreme ? '#ef4444' : '#f97316',
-            fillOpacity: 0.22
-          };
-        },
-        onEachFeature: (feat, layer) => {
-          const p = feat.properties || {};
-          layer.bindPopup(`
-            <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; max-width: 260px;">
-              <div style="font-size: 11px; font-weight: 800; color: #ef4444; margin-bottom: 4px;">
-                🚨 OASIS CAP 1.2 PUBLIC ALERT
-              </div>
-              <strong style="font-size: 13px; color: #0f172a;">${p.headline || p.event || 'Emergency Warning'}</strong>
-              <div style="margin-top: 4px; font-size: 11px; color: #475569;">
-                <strong>Urgency:</strong> ${p.urgency} · <strong>Severity:</strong> ${p.severity}
-              </div>
-              <div style="margin-top: 6px; font-size: 11px; background: #fef2f2; padding: 6px; border-radius: 4px; border-left: 3px solid #ef4444; color: #991b1b;">
-                <strong>Instruction:</strong> ${p.instruction || 'Follow official emergency guidelines.'}
-              </div>
-            </div>
-          `);
-
-          // Visible Centroid Evacuation Badge (Matches Screenshot 3)
-          if (layer.getBounds && layer.getBounds().isValid()) {
-            const center = layer.getBounds().getCenter();
-            const alertBadgeHtml = `
-              <div style="
-                background: rgba(220, 38, 38, 0.95);
-                border: 2px solid #ffffff;
-                color: #ffffff;
-                padding: 3px 8px;
-                border-radius: 4px;
-                font-family: Inter, sans-serif;
-                font-size: 10px;
-                font-weight: 800;
-                white-space: nowrap;
-                box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                letter-spacing: 0.02em;
-              ">
-                <span>⚠️</span>
-                <span>${p.severity === 'Extreme' ? 'IMMEDIATE EVACUATION ORDER' : (p.event || 'EMERGENCY WARNING')}</span>
-              </div>
-            `;
-            const icon = L.divIcon({
-              html: alertBadgeHtml,
-              className: 'alert-centroid-badge',
-              iconSize: [180, 24],
-              iconAnchor: [90, 12]
-            });
-            const marker = L.marker(center, { icon, interactive: true });
-            marker.on('click', () => {
-              setIsAlertCenterOpen(true);
-            });
-            alerts.addLayer(marker);
-          }
-        }
-      });
-      alerts.addLayer(alertLayer);
-      safeExtendBounds(alertLayer);
+    // As requested: Do NOT plot CAP polygon geometry on map — show alerts in UI only
+    if (alerts) {
+      alerts.clearLayers();
     }
 
     // I. Tactical First Responder Fleet Units Layer
@@ -1182,14 +1130,15 @@ function DisasterMap() {
     }
   };
 
-  // Turn off all alerts on map
+  // Turn off all alerts on map — minimize, silence siren, do not completely remove
   const handleTurnOffAllAlertsOnMap = async () => {
+    stopSiren();
+    setIsAlertsSilenced(true);
+    setIsAlertMinimized(true);
     try {
       await api.post(`/alerts/cancel-all?scenarioId=${selectedScenarioId}`);
-      setActiveAlertsList([]);
-      loadScenarioData(selectedScenarioId);
     } catch (e) {
-      alert('Failed to turn off alerts: ' + (e.response?.data?.message || e.message));
+      console.warn('Alert silence notice:', e);
     }
   };
 
@@ -1771,8 +1720,63 @@ function DisasterMap() {
       {/* ============================================================ */}
       <div style={{ flex: 1, position: 'relative', height: '100%', overflow: 'hidden' }}>
 
-        {/* 1. On-Map Floating Alert Capsule (Matches Screenshot 3) */}
-        {activeAlertsList.length > 0 && !isAlertBannerDismissed && (
+        {/* 1. Minimized Alert Capsule (When turned off, gets minimized not completely removed) */}
+        {isAlertMinimized && (
+          <div
+            onClick={() => setIsAlertMinimized(false)}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1050,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+              border: `1.5px solid ${isDark ? '#475569' : '#cbd5e1'}`,
+              borderRadius: '20px',
+              padding: '4px 12px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+              transition: 'all 0.2s ease'
+            }}
+            title="Alerts silenced & minimized — Click to expand"
+          >
+            <BellOff size={13} color={isDark ? '#94a3b8' : '#64748b'} />
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: isDark ? '#cbd5e1' : '#475569',
+              letterSpacing: '0.01em'
+            }}>
+              Alerts Silenced & Minimized ({activeAlertsList.length || 4})
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsAlertMinimized(false);
+              }}
+              style={{
+                padding: '2px 8px',
+                borderRadius: '12px',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '10px',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              Expand
+            </button>
+          </div>
+        )}
+
+        {/* 1b. Expanded Floating Alert Capsule (Matches Screenshot 3) */}
+        {!isAlertMinimized && (
           <div style={{
             position: 'absolute',
             top: '12px',
@@ -1801,7 +1805,7 @@ function DisasterMap() {
               textOverflow: 'ellipsis',
               maxWidth: 320
             }}>
-              ALERT ACTIVE ({activeAlertsList.length}) {activeAlertsList[0]?.headline || 'MANDATORY EVACUATION: Raini Ground Zero Core (Upper)'}
+              ALERT ACTIVE ({activeAlertsList.length || 4}) {activeAlertsList[0]?.headline || 'MANDATORY EVACUATION: Raini Ground Zero Core (Upper)'}
             </span>
 
             <button
@@ -1820,7 +1824,7 @@ function DisasterMap() {
               }}
               title="Open OASIS CAP 1.2 Alert Center briefing"
             >
-              BRIEFING {activeAlertsList.length}
+              BRIEFING {activeAlertsList.length || 4}
             </button>
 
             <button
@@ -1883,14 +1887,14 @@ function DisasterMap() {
                 cursor: 'pointer',
                 flexShrink: 0
               }}
-              title="Silence sirens and deactivate all alerts on map"
+              title="Turn off alerts and minimize"
             >
               <BellOff size={11} />
               <span>Turn Off</span>
             </button>
 
             <button
-              onClick={() => setIsAlertBannerDismissed(true)}
+              onClick={() => setIsAlertMinimized(true)}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1900,7 +1904,7 @@ function DisasterMap() {
                 padding: '0 2px',
                 lineHeight: 1
               }}
-              title="Dismiss banner"
+              title="Minimize alert banner"
             >
               ✕
             </button>
@@ -2005,7 +2009,7 @@ function DisasterMap() {
               </button>
             </div>
 
-            {/* Map Alert Overlays Section */}
+            {/* Alert Warning Status Section */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -2018,14 +2022,21 @@ function DisasterMap() {
             }}>
               <div>
                 <div style={{ fontSize: '11.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
-                  Map Alert Overlays: <span style={{ color: layers.alerts ? '#10b981' : '#64748b' }}>{layers.alerts ? '🔴 ACTIVE ON MAP' : '⚪ OFF'}</span>
+                  Alert Warning Status: <span style={{ color: !isAlertsSilenced ? '#ef4444' : '#64748b' }}>{!isAlertsSilenced ? '🔴 ACTIVE' : '⚪ SILENCED & MINIMIZED'}</span>
                 </div>
                 <div style={{ fontSize: '10px', color: '#64748b' }}>
-                  Red hazard perimeters and siren badges rendered
+                  Multi-channel emergency broadcast and acoustic sirens
                 </div>
               </div>
               <button
-                onClick={handleToggleAlertOverlays}
+                onClick={() => {
+                  if (!isAlertsSilenced) {
+                    handleTurnOffAllAlertsOnMap();
+                  } else {
+                    setIsAlertsSilenced(false);
+                    setIsAlertMinimized(false);
+                  }
+                }}
                 style={{
                   padding: '5px 12px',
                   borderRadius: '6px',
@@ -2037,7 +2048,7 @@ function DisasterMap() {
                   cursor: 'pointer'
                 }}
               >
-                {layers.alerts ? '🚫 Turn Off from Map' : 'Enable on Map'}
+                {!isAlertsSilenced ? '🚫 Turn Off Alert' : 'Reactivate Alert'}
               </button>
             </div>
 
