@@ -53,12 +53,14 @@ function AppContent() {
           <Route path="/dashboard" element={<ExecutiveDashboard />} />
           <Route path="/alerts" element={<AlertBroadcastCenter />} />
           <Route path="/cad" element={<TacticalCadBoard />} />
+          <Route path="/emergency" element={<TacticalCadBoard />} />
           <Route path="/reports" element={<ReportView />} />
           <Route path="/scenario-data" element={<ScenarioView />} />
           <Route path="/scenario/:scenarioId/map" element={<DisasterMap />} />
           <Route path="/scenario/:scenarioId/dashboard" element={<ExecutiveDashboard />} />
           <Route path="/scenario/:scenarioId/alerts" element={<AlertBroadcastCenter />} />
           <Route path="/scenario/:scenarioId/cad" element={<TacticalCadBoard />} />
+          <Route path="/scenario/:scenarioId/emergency" element={<TacticalCadBoard />} />
           <Route path="/scenario/:scenarioId/reports" element={<ReportView />} />
           <Route path="/research" element={<ResearchMetrics />} />
           <Route path="/model-training" element={<ModelTraining />} />

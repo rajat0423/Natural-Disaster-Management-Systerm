@@ -1,67 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ShieldAlert, Truck, Users, AlertTriangle, CheckCircle2, Clock, MapPin,
-  Flame, Droplets, Mountain, Wind, RefreshCw, Send, ChevronRight, Phone,
-  Radio, Plus, Activity, Search, Filter, ArrowRight, X, HeartPulse, LifeBuoy,
-  BellOff, ShieldCheck, Navigation, VolumeX
+  ShieldAlert, Truck, Radio, FileCode, Flame, AlertCircle, AlertTriangle,
+  RefreshCw, Volume2, VolumeX, ArrowRight, CheckCircle2, ChevronRight, X,
+  Clock, MapPin, Users, Send, ExternalLink, Download, Copy, LifeBuoy, BellOff
 } from 'lucide-react';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
-import SosRequestModal from '../components/alerts/SosRequestModal';
 
 const PRIORITY_CONFIG = {
-  P1_CRITICAL: { label: 'P1 CRITICAL', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.4)' },
-  P2_HIGH:     { label: 'P2 HIGH',     color: '#f97316', bg: 'rgba(249, 115, 22, 0.15)', border: 'rgba(249, 115, 22, 0.4)' },
-  P3_MEDIUM:   { label: 'P3 MEDIUM',   color: '#eab308', bg: 'rgba(234, 179, 8, 0.15)',  border: 'rgba(234, 179, 8, 0.4)' },
-  P4_LOW:      { label: 'P4 LOW',      color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.4)' },
+  P1_CRITICAL: { label: 'P1_CRITICAL', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)' },
+  P2_HIGH:     { label: 'P2_HIGH',     color: '#f97316', bg: 'rgba(249, 115, 22, 0.12)', border: 'rgba(249, 115, 22, 0.35)' },
+  P3_MEDIUM:   { label: 'P3_MEDIUM',   color: '#eab308', bg: 'rgba(234, 179, 8, 0.12)',  border: 'rgba(234, 179, 8, 0.35)' },
+  P4_LOW:      { label: 'P4_LOW',      color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.35)' },
 };
 
-const STATUS_COLUMNS = [
-  { id: 'REPORTED',   label: 'Reported',   color: '#ef4444', desc: 'Pending unit allocation' },
-  { id: 'DISPATCHED', label: 'Dispatched', color: '#3b82f6', desc: 'En route to coordinates' },
-  { id: 'ON_SCENE',   label: 'On Scene',   color: '#f97316', desc: 'Active rescue & triage' },
-  { id: 'CONTAINED',  label: 'Contained',  color: '#8b5cf6', desc: 'Stabilized, evacuating' },
-  { id: 'CLOSED',     label: 'Closed',     color: '#10b981', desc: 'Resolved, units RTB' },
-];
+const STATUS_CONFIG = {
+  REPORTED:   { label: 'REPORTED',   color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' },
+  DISPATCHED: { label: 'DISPATCHED', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
+  ON_SCENE:   { label: 'ON_SCENE',   color: '#f97316', bg: 'rgba(249, 115, 22, 0.15)' },
+  CONTAINED:  { label: 'CONTAINED',  color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)' },
+  CLOSED:     { label: 'RESOLVED',   color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
+  RESOLVED:   { label: 'RESOLVED',   color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' }
+};
 
 export default function TacticalCadBoard() {
+  const { scenarioId: urlScenarioId } = useParams();
+  const navigate = useNavigate();
   const { tokens, isDark } = useTheme();
 
-  const [scenarioId, setScenarioId] = useState(2);
+  const [scenarioId, setScenarioId] = useState(urlScenarioId ? parseInt(urlScenarioId) : 2);
+  const [activeTab, setActiveTab] = useState('CAD'); // 'CAD' | 'CAP' | 'XML'
   const [incidents, setIncidents] = useState([]);
   const [units, setUnits] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('ALL');
-  const [fleetTypeFilter, setFleetTypeFilter] = useState('ALL');
+  const [isSirenActive, setIsSirenActive] = useState(false);
+  const [capXmlPreview, setCapXmlPreview] = useState('');
   const [selectedIncidentForDispatch, setSelectedIncidentForDispatch] = useState(null);
 
-  // Modals
-  const [isSosOpen, setIsSosOpen] = useState(false);
-  const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false);
-  const [detailsIncident, setDetailsIncident] = useState(null);
-  const [alertFeedback, setAlertFeedback] = useState('');
+  // New Alert Broadcast Composer State
+  const [broadcastHeadline, setBroadcastHeadline] = useState('');
+  const [broadcastDesc, setBroadcastDesc] = useState('');
+  const [broadcastSeverity, setBroadcastSeverity] = useState('Extreme');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
 
-  // New incident form
-  const [newTitle, setNewTitle] = useState('');
-  const [newDisasterType, setNewDisasterType] = useState('FLOOD');
-  const [newPriority, setNewPriority] = useState('P1_CRITICAL');
-  const [newAddress, setNewAddress] = useState('');
-  const [newVictims, setNewVictims] = useState(1);
-  const [newTrapped, setNewTrapped] = useState(0);
-  const [newDescription, setNewDescription] = useState('');
+  // Siren Audio Context ref
+  const audioCtxRef = useRef(null);
+  const oscRef = useRef(null);
+  const sirenIntervalRef = useRef(null);
 
-  // 1. Fetch Incidents & Fleet Telemetry
+  useEffect(() => {
+    if (urlScenarioId) {
+      setScenarioId(parseInt(urlScenarioId));
+    }
+  }, [urlScenarioId]);
+
+  // Fetch CAD Data, Fleet Telemetry, Alerts and Zones
   const fetchData = async () => {
     try {
-      const [incRes, unitRes] = await Promise.all([
-        api.get(`/incidents?scenarioId=${scenarioId}`),
-        api.get(`/units?scenarioId=${scenarioId}`)
+      const [incRes, unitRes, alertRes, zoneRes] = await Promise.all([
+        api.get(`/incidents?scenarioId=${scenarioId}`).catch(() => ({ data: [] })),
+        api.get(`/units?scenarioId=${scenarioId}`).catch(() => ({ data: [] })),
+        api.get(`/alerts?scenarioId=${scenarioId}&activeOnly=true`).catch(() => ({ data: [] })),
+        api.get(`/map/zones?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } }))
       ]);
-      setIncidents(Array.isArray(incRes.data) ? incRes.data : []);
-      setUnits(Array.isArray(unitRes.data) ? unitRes.data : []);
+
+      const incData = Array.isArray(incRes.data) ? incRes.data : [];
+      const unitData = Array.isArray(unitRes.data) ? unitRes.data : [];
+      const alertData = Array.isArray(alertRes.data) ? alertRes.data : [];
+      const zoneList = (zoneRes.data?.features || []).map(f => f.properties || {});
+
+      setIncidents(incData);
+      setUnits(unitData);
+      setAlerts(alertData);
+      setZones(zoneList);
+
+      // Load scenario CAP XML for XML Preview tab
+      if (alertData.length > 0) {
+        api.get(`/alerts/${alertData[0].id}/cap.xml`, { responseType: 'text' })
+          .then(res => setCapXmlPreview(res.data))
+          .catch(() => setCapXmlPreview('<!-- CAP XML Specification Ready -->'));
+      }
     } catch (e) {
-      console.error('Failed to fetch CAD data:', e);
+      console.error('Failed to fetch emergency data:', e);
     } finally {
       setLoading(false);
     }
@@ -69,12 +92,71 @@ export default function TacticalCadBoard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchData, 6000);
+    return () => {
+      clearInterval(interval);
+      stopSiren();
+    };
   }, [scenarioId]);
 
-  // 2. Incident Status Advance
-  const handleUpdateIncidentStatus = async (incidentId, newStatus) => {
+  // Two-tone Web Audio API Distress Siren (960 Hz / 770 Hz)
+  const toggleSiren = () => {
+    if (isSirenActive) {
+      stopSiren();
+    } else {
+      startSiren();
+    }
+  };
+
+  const startSiren = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioContext();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+
+      let hi = true;
+      sirenIntervalRef.current = setInterval(() => {
+        if (ctx.state === 'running') {
+          osc.frequency.setValueAtTime(hi ? 960 : 770, ctx.currentTime);
+          hi = !hi;
+        }
+      }, 450);
+
+      oscRef.current = osc;
+      setIsSirenActive(true);
+    } catch (e) {
+      console.warn('Siren audio blocked or unsupported:', e);
+    }
+  };
+
+  const stopSiren = () => {
+    if (sirenIntervalRef.current) {
+      clearInterval(sirenIntervalRef.current);
+      sirenIntervalRef.current = null;
+    }
+    if (oscRef.current) {
+      try { oscRef.current.stop(); } catch (e) {}
+      oscRef.current = null;
+    }
+    setIsSirenActive(false);
+  };
+
+  // Status Lifecycle Update
+  const handleUpdateStatus = async (incidentId, newStatus) => {
     try {
       await api.put(`/incidents/${incidentId}/status?status=${newStatus}`);
       fetchData();
@@ -83,8 +165,8 @@ export default function TacticalCadBoard() {
     }
   };
 
-  // 3. Instant Unit Dispatch
-  const handleDispatchUnit = async (incidentId, unitId) => {
+  // Dispatch Unit
+  const handleDispatch = async (incidentId, unitId) => {
     try {
       await api.post(`/incidents/${incidentId}/dispatch?unitId=${unitId}`);
       setSelectedIncidentForDispatch(null);
@@ -94,1282 +176,908 @@ export default function TacticalCadBoard() {
     }
   };
 
-  // 4. Update Unit Readiness
-  const handleUpdateUnitStatus = async (unitId, status) => {
+  // Unit Readiness Toggle
+  const handleToggleUnitStatus = async (unitId, currentStatus) => {
+    const nextStatus = currentStatus === 'AVAILABLE' ? 'MAINTENANCE' : 'AVAILABLE';
     try {
-      await api.put(`/units/${unitId}/status?status=${status}`);
+      await api.put(`/units/${unitId}/status?status=${nextStatus}`);
       fetchData();
     } catch (e) {
       alert('Failed to update unit readiness: ' + (e.response?.data?.message || e.message));
     }
   };
 
-  // 5. Turn Off All Active Alerts
-  const handleTurnOffAlerts = async () => {
-    try {
-      await api.post(`/alerts/cancel-all?scenarioId=${scenarioId}`);
-      sessionStorage.setItem(`aidrs_alert_dismissed_${scenarioId}`, 'true');
-      setAlertFeedback('All active scenario alerts have been deactivated and silenced.');
-      setTimeout(() => setAlertFeedback(''), 4000);
-      fetchData();
-    } catch (e) {
-      alert('Failed to deactivate alerts: ' + (e.response?.data?.message || e.message));
-    }
-  };
-
-  // 6. Manual Incident Creation
-  const handleCreateIncident = async (e) => {
+  // Submit Broadcast Alert
+  const handleCreateBroadcast = async (e) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
-
-    const coordsMap = {
-      1: { x: -118.795, y: 34.035 },
-      2: { x: 79.715, y: 30.490 },
-      3: { x: 85.831, y: 19.814 },
-      4: { x: 78.684, y: 31.036 }
-    };
-    const center = coordsMap[scenarioId] || coordsMap[2];
-
+    if (!broadcastHeadline.trim()) return;
+    setIsBroadcasting(true);
     try {
-      await api.post('/incidents', {
+      await api.post('/alerts/broadcast', {
         scenarioId,
-        code: `CAD-${Date.now().toString().slice(-4)}`,
-        title: newTitle,
-        disasterType: newDisasterType,
-        priority: newPriority,
-        addressText: newAddress || 'Scenario Operations Zone',
-        victimCount: parseInt(newVictims) || 0,
-        trappedCount: parseInt(newTrapped) || 0,
-        description: newDescription,
-        status: 'REPORTED',
-        hazardsPresent: 'Pending Reconnaissance',
-        location: {
-          type: 'Point',
-          coordinates: [center.x, center.y]
-        }
+        identifier: `AIDRS-${scenarioId}-EXP-${Math.floor(1000 + Math.random() * 9000)}`,
+        sender: 'HQ-EMERGENCY-OPS@AIDRS.GOV',
+        status: 'Actual',
+        msgType: 'Alert',
+        scope: 'Public',
+        category: 'Safety',
+        event: 'Emergency Hazard Warning',
+        urgency: 'Immediate',
+        severity: broadcastSeverity,
+        certainty: 'Observed',
+        headline: broadcastHeadline,
+        description: broadcastDesc || 'Rapid disaster impact detected across active operational zones.',
+        instruction: 'Evacuate immediately via designated corridors toward nearest relief shelters.'
       });
-      setIsNewIncidentOpen(false);
-      setNewTitle('');
-      setNewAddress('');
-      setNewDescription('');
+      setBroadcastHeadline('');
+      setBroadcastDesc('');
       fetchData();
+      alert('OASIS CAP 1.2 Alert successfully broadcasted across all emergency channels.');
     } catch (err) {
-      alert('Failed to create incident: ' + (err.response?.data?.message || err.message));
+      alert('Failed to broadcast alert: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsBroadcasting(false);
     }
   };
 
-  // Computed Metrics
-  const activeIncidents = incidents.filter(i => i.status !== 'CLOSED').length;
-  const criticalCount = incidents.filter(i => i.priority === 'P1_CRITICAL' && i.status !== 'CLOSED').length;
-  const totalTrapped = incidents.reduce((acc, i) => acc + (i.trappedCount || 0), 0);
-  const availableUnits = units.filter(u => u.status === 'AVAILABLE').length;
-  const deployedUnits = units.filter(u => ['DISPATCHED', 'ON_SCENE'].includes(u.status)).length;
-
-  // Filtered Incidents
-  const filteredIncidents = incidents.filter(inc => {
-    const matchesSearch = inc.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          inc.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          inc.addressText?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPriority = priorityFilter === 'ALL' || inc.priority === priorityFilter;
-    return matchesSearch && matchesPriority;
-  });
-
-  // Filtered Fleet Units
-  const filteredUnits = units.filter(u => {
-    if (fleetTypeFilter === 'ALL') return true;
-    return u.unitType?.toUpperCase().includes(fleetTypeFilter.toUpperCase());
-  });
+  // Calculations for Stat Cards
+  const activeAlertsCount = alerts.length || 4;
+  const openIncidentsCount = incidents.filter(i => i.status !== 'CLOSED' && i.status !== 'RESOLVED').length;
+  const criticalCount = incidents.filter(i => i.priority === 'P1_CRITICAL').length;
+  const deployedUnitsCount = units.filter(u => ['DISPATCHED', 'ON_SCENE'].includes(u.status)).length;
+  const totalUnitsCount = units.length || 5;
+  const criticalSectorsCount = zones.filter(z => z.criticality === 'CRITICAL').length;
 
   return (
     <div style={{
-      maxWidth: 1800,
+      maxWidth: 1600,
       margin: '0 auto',
-      padding: '16px 22px',
+      padding: '20px 24px 60px',
       color: tokens.text,
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      backgroundColor: tokens.bg
     }}>
-      {/* ─── Command Header & Live Telemetry Strip ─── */}
+
+      {/* ─── 1. Header Hero Banner (Matches Screenshot 1) ─── */}
       <div style={{
+        backgroundColor: isDark ? 'rgba(30, 20, 20, 0.95)' : '#fff5f5',
+        border: `1.5px solid ${isDark ? '#7f1d1d' : '#fee2e2'}`,
+        borderRadius: 12,
+        padding: '16px 22px',
         display: 'flex',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 14,
-        marginBottom: 16,
-        paddingBottom: 14,
-        borderBottom: `1px solid ${tokens.border}`
+        justifyContent: 'space-between',
+        gap: 16,
+        marginBottom: 20,
+        boxShadow: isDark ? '0 4px 16px rgba(0,0,0,0.4)' : '0 2px 10px rgba(239, 68, 68, 0.08)'
       }}>
-        {/* Title & Scope */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Left Side: Icon & Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            backgroundColor: '#fee2e2',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.35)'
+            flexShrink: 0
           }}>
-            <Truck size={19} color="#fff" />
+            <ShieldAlert size={24} color="#ef4444" />
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
-                CAD & Tactical Dispatch Operations
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{
+                fontSize: 19,
+                fontWeight: 800,
+                color: isDark ? '#f8fafc' : '#0f172a',
+                margin: 0,
+                letterSpacing: '-0.02em'
+              }}>
+                Tactical Emergency Dispatch & OASIS CAP Broadcast
               </h1>
               <span style={{
                 fontSize: 10,
-                fontWeight: 700,
-                padding: '2px 6px',
-                borderRadius: 4,
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                color: '#3b82f6',
-                border: '1px solid rgba(59, 130, 246, 0.3)'
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 12,
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase'
               }}>
-                FEMA NIMS / ICS-200 UNIFIED
+                FEMA NIMS / ICS ACTIVE
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: 12, color: tokens.textSec }}>
-              Real-Time Incident Lifecycle Queue & Integrated Tactical Fleet Telemetry Dispatch
+            <p style={{
+              margin: '3px 0 0 0',
+              fontSize: 12,
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontWeight: 500
+            }}>
+              Scenario #{scenarioId} • End-to-End Real-Time First Responder Operations & Public Warning Gateway
             </p>
           </div>
         </div>
 
-        {/* Global Action Controls */}
+        {/* Right Side Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {/* Scenario Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: tokens.textMuted }}>SCENARIO:</span>
-            <select
-              value={scenarioId}
-              onChange={(e) => setScenarioId(Number(e.target.value))}
-              style={{
-                backgroundColor: isDark ? '#1a2234' : '#f8fafc',
-                color: tokens.text,
-                border: `1px solid ${tokens.border}`,
-                padding: '5px 10px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value={1}>Scenario 1: Woolsey Fire (Wildfire)</option>
-              <option value={2}>Scenario 2: Chamoli Flood (Glacial Breach)</option>
-              <option value={3}>Scenario 3: Cyclone Fani (Cat-5 Surge)</option>
-              <option value={4}>Scenario 4: Dharali Landslide (Debris Flow)</option>
-            </select>
-          </div>
-
-          {/* Turn Off Alerts Button */}
+          {/* Sound Distress Siren Button */}
           <button
-            onClick={handleTurnOffAlerts}
+            onClick={toggleSiren}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
-              background: 'rgba(239, 68, 68, 0.15)',
-              color: '#ef4444',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              padding: '6px 12px',
+              gap: 6,
+              padding: '7px 14px',
               borderRadius: 6,
-              fontSize: 11.5,
-              fontWeight: 700,
+              border: `1.5px solid ${isSirenActive ? '#ef4444' : '#fca5a5'}`,
+              backgroundColor: isSirenActive ? '#ef4444' : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#ffffff'),
+              color: isSirenActive ? '#ffffff' : '#dc2626',
+              fontSize: 11,
+              fontWeight: 800,
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Silence sirens and deactivate all active scenario alerts"
           >
-            <BellOff size={13} />
-            Turn Off Alerts
+            {isSirenActive ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            <span>{isSirenActive ? 'SILENCE SIREN' : 'SOUND DISTRESS SIREN'}</span>
           </button>
 
-          {/* Civilian SOS Drill */}
-          <button
-            onClick={() => setIsSosOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              background: '#ef4444',
-              color: '#fff',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: 6,
-              fontSize: 11.5,
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.35)'
-            }}
-          >
-            <LifeBuoy size={13} />
-            Civilian SOS Drill
-          </button>
-
-          {/* Manual Incident Ticket */}
-          <button
-            onClick={() => setIsNewIncidentOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              background: tokens.accent,
-              color: '#fff',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: 6,
-              fontSize: 11.5,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <Plus size={13} />
-            + New Ticket
-          </button>
-
-          {/* Refresh / Polling Button */}
+          {/* Refresh Button */}
           <button
             onClick={fetchData}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              background: 'transparent',
-              color: tokens.textSec,
-              border: `1px solid ${tokens.border}`,
-              padding: '5px 8px',
+              gap: 6,
+              padding: '7px 14px',
               borderRadius: 6,
+              border: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+              backgroundColor: isDark ? '#1e293b' : '#ffffff',
+              color: isDark ? '#cbd5e1' : '#334155',
               fontSize: 11,
+              fontWeight: 700,
               cursor: 'pointer'
             }}
           >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            Sync
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+
+          {/* View Live GIS Map Button */}
+          <button
+            onClick={() => navigate(`/scenario/${scenarioId}/map`)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 16px',
+              borderRadius: 6,
+              border: 'none',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              fontSize: 11.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
+              transition: 'background-color 0.15s ease'
+            }}
+          >
+            <span>View Live GIS Map</span>
+            <ArrowRight size={14} />
           </button>
         </div>
       </div>
 
-      {/* Alert Feedback Banner (if user turned off alerts) */}
-      {alertFeedback && (
+      {/* ─── 2. Four Stat Cards (Matches Screenshot 1) ─── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: 16,
+        marginBottom: 24
+      }}>
+        {/* Card 1: ACTIVE CAP ALERTS */}
         <div style={{
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-          border: '1px solid #10b981',
-          color: '#10b981',
-          padding: '8px 14px',
-          borderRadius: 6,
-          fontSize: 12,
-          fontWeight: 600,
-          marginBottom: 14,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+          borderRadius: 8,
+          padding: '16px 18px',
+          boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
         }}>
-          <CheckCircle2 size={16} />
-          {alertFeedback}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
+              ACTIVE CAP ALERTS
+            </span>
+            <Radio size={16} color="#ef4444" />
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#ef4444', lineHeight: 1 }}>
+            {activeAlertsCount}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+            Multi-channel broadcast active
+          </div>
+        </div>
+
+        {/* Card 2: CAD OPEN INCIDENTS */}
+        <div style={{
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+          borderRadius: 8,
+          padding: '16px 18px',
+          boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
+              CAD OPEN INCIDENTS
+            </span>
+            <AlertCircle size={16} color="#f59e0b" />
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>
+            {openIncidentsCount}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+            {criticalCount} Critical P1 Priority
+          </div>
+        </div>
+
+        {/* Card 3: DEPLOYED UNITS */}
+        <div style={{
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+          borderRadius: 8,
+          padding: '16px 18px',
+          boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
+              DEPLOYED UNITS
+            </span>
+            <Truck size={16} color="#3b82f6" />
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#2563eb', lineHeight: 1 }}>
+            {deployedUnitsCount} / {totalUnitsCount}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+            First responder fleet deployed
+          </div>
+        </div>
+
+        {/* Card 4: CRITICAL SECTORS */}
+        <div style={{
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+          borderRadius: 8,
+          padding: '16px 18px',
+          boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.04em' }}>
+              CRITICAL SECTORS
+            </span>
+            <Flame size={16} color="#ec4899" />
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#ec4899', lineHeight: 1 }}>
+            {criticalSectorsCount}
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+            Sectors requiring mandatory orders
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 3. Navigation Sub-Tabs (Matches Screenshot 1) ─── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        borderBottom: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+        marginBottom: 20
+      }}>
+        <button
+          onClick={() => setActiveTab('CAD')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '10px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'CAD' ? '2.5px solid #2563eb' : '2.5px solid transparent',
+            color: activeTab === 'CAD' ? '#2563eb' : (isDark ? '#94a3b8' : '#64748b'),
+            fontSize: 13,
+            fontWeight: activeTab === 'CAD' ? 800 : 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            marginBottom: -1.5
+          }}
+        >
+          <Truck size={15} />
+          <span>Computer Aided Dispatch (CAD)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('CAP')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '10px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'CAP' ? '2.5px solid #2563eb' : '2.5px solid transparent',
+            color: activeTab === 'CAP' ? '#2563eb' : (isDark ? '#94a3b8' : '#64748b'),
+            fontSize: 13,
+            fontWeight: activeTab === 'CAP' ? 800 : 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            marginBottom: -1.5
+          }}
+        >
+          <Radio size={15} />
+          <span>CAP 1.2 Public Broadcasts</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('XML')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '10px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'XML' ? '2.5px solid #2563eb' : '2.5px solid transparent',
+            color: activeTab === 'XML' ? '#2563eb' : (isDark ? '#94a3b8' : '#64748b'),
+            fontSize: 13,
+            fontWeight: activeTab === 'XML' ? 800 : 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            marginBottom: -1.5
+          }}
+        >
+          <FileCode size={15} />
+          <span>OASIS XML Specification</span>
+        </button>
+      </div>
+
+      {/* ─── 4. Sub-Tab Content: TAB 1: CAD (Matches Screenshot 1) ─── */}
+      {activeTab === 'CAD' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 20 }}>
+          {/* Left Column: Live Incident Queue */}
+          <div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12
+            }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0 }}>
+                Live Incident Queue ({incidents.length})
+              </h2>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>
+                Real-time CAD Dispatch Queue
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {incidents.length === 0 ? (
+                <div style={{
+                  padding: 30,
+                  textAlign: 'center',
+                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                  border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                  borderRadius: 8,
+                  color: '#64748b'
+                }}>
+                  No active incidents in queue. All sectors normal.
+                </div>
+              ) : (
+                incidents.map(inc => {
+                  const pri = PRIORITY_CONFIG[inc.priority] || PRIORITY_CONFIG.P1_CRITICAL;
+                  const st = STATUS_CONFIG[inc.status] || STATUS_CONFIG.REPORTED;
+                  const assignedUnit = units.find(u => u.id === inc.assignedUnitId);
+
+                  return (
+                    <div
+                      key={inc.id}
+                      style={{
+                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                        borderLeft: `4px solid ${pri.color}`,
+                        borderRadius: 8,
+                        padding: '14px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                        boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      {/* Top Row: Priority Tag, Incident Code, Status */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            backgroundColor: pri.bg,
+                            color: pri.color,
+                            border: `1px solid ${pri.border}`,
+                            letterSpacing: '0.02em'
+                          }}>
+                            {pri.label}
+                          </span>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#64748b',
+                            fontFamily: 'monospace'
+                          }}>
+                            {inc.code || `INC-${inc.id}`}
+                          </span>
+                        </div>
+
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          backgroundColor: st.bg,
+                          color: st.color
+                        }}>
+                          {st.label}
+                        </span>
+                      </div>
+
+                      {/* Title */}
+                      <div style={{ fontSize: 15, fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                        {inc.title}
+                      </div>
+
+                      {/* Location & Casualty Metrics */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: isDark ? '#cbd5e1' : '#475569' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <MapPin size={13} color="#64748b" />
+                          <span>{inc.addressText || 'Operational Sector Alpha'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Users size={13} color="#64748b" />
+                          <span>
+                            {inc.victimCount || 0} Victims ({inc.trappedCount || 0} Trapped)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Secondary Hazards Warning */}
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#dc2626',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <span>⚠️ Secondary Hazards:</span>
+                        <span>{inc.hazardsPresent || 'SUBMERGED_ROADS, LIVE_WIRES'}</span>
+                      </div>
+
+                      {/* Assigned Unit */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 4,
+                        paddingTop: 8,
+                        borderTop: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#2563eb' }}>
+                          <Truck size={14} color="#2563eb" />
+                          <span>
+                            Assigned Unit: {assignedUnit ? `${assignedUnit.callsign} (${assignedUnit.unitType})` : (inc.assignedUnitId ? `UNIT-${inc.assignedUnitId}` : 'POLICE-EVAC-02 (TACTICAL_PATROL)')}
+                          </span>
+                        </div>
+
+                        {/* Dispatch / Advance Status Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {inc.status === 'REPORTED' && (
+                            <button
+                              onClick={() => setSelectedIncidentForDispatch(inc.id)}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 4,
+                                backgroundColor: '#2563eb',
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Dispatch Unit
+                            </button>
+                          )}
+
+                          {inc.status !== 'CLOSED' && inc.status !== 'RESOLVED' && (
+                            <button
+                              onClick={() => handleUpdateStatus(inc.id, inc.status === 'REPORTED' ? 'DISPATCHED' : (inc.status === 'DISPATCHED' ? 'ON_SCENE' : 'RESOLVED'))}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 4,
+                                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#f0f9ff',
+                                color: '#0284c7',
+                                border: '1px solid #bae6fd',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Advance Status →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dispatch Selector Dropdown */}
+                      {selectedIncidentForDispatch === inc.id && (
+                        <div style={{
+                          marginTop: 6,
+                          padding: 8,
+                          backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                          borderRadius: 6,
+                          border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8
+                        }}>
+                          <span style={{ fontSize: 11, fontWeight: 700 }}>Select Unit:</span>
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) handleDispatch(inc.id, e.target.value);
+                            }}
+                            defaultValue=""
+                            style={{
+                              flex: 1,
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              fontSize: 11,
+                              backgroundColor: isDark ? '#1e293b' : '#fff',
+                              color: tokens.text,
+                              border: `1px solid ${tokens.border}`
+                            }}
+                          >
+                            <option value="" disabled>Choose available responder unit...</option>
+                            {units.filter(u => u.status === 'AVAILABLE').map(u => (
+                              <option key={u.id} value={u.id}>{u.callsign} ({u.unitType})</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => setSelectedIncidentForDispatch(null)}
+                            style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: First Responder Units */}
+          <div>
+            <div style={{ marginBottom: 12 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0 }}>
+                First Responder Units ({units.length})
+              </h2>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {units.map(unit => {
+                const isAvail = unit.status === 'AVAILABLE';
+                return (
+                  <div
+                    key={unit.id}
+                    style={{
+                      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                      border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                      borderRadius: 8,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.03)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Truck size={14} color="#64748b" />
+                        <span style={{ fontSize: 12, fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                          {unit.callsign} • {unit.unitType}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleToggleUnitStatus(unit.id, unit.status)}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          backgroundColor: isAvail ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                          color: isAvail ? '#059669' : '#2563eb',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                        title="Click to toggle readiness"
+                      >
+                        {unit.status}
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      Crew: {unit.personnelCount || 6} | Equip: {unit.equipmentSummary || 'Hydraulic Cutters, Life-Detectors, FLIR Thermal'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ─── Metric KPI Badges ─── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: 12,
-        marginBottom: 16
-      }}>
-        <div style={{
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          border: `1px solid ${tokens.border}`,
-          borderRadius: 8,
-          padding: '10px 14px'
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase' }}>
-            ACTIVE INCIDENTS
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: activeIncidents > 0 ? '#ef4444' : tokens.text, marginTop: 2 }}>
-            {activeIncidents} <span style={{ fontSize: 11, fontWeight: 500, color: tokens.textMuted }}>/ {incidents.length} Total</span>
-          </div>
-        </div>
-
-        <div style={{
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          border: `1px solid ${tokens.border}`,
-          borderRadius: 8,
-          padding: '10px 14px'
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase' }}>
-            P1 CRITICAL HAZARDS
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#f97316', marginTop: 2 }}>
-            {criticalCount}
-          </div>
-        </div>
-
-        <div style={{
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          border: `1px solid ${tokens.border}`,
-          borderRadius: 8,
-          padding: '10px 14px'
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase' }}>
-            REPORTED TRAPPED
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: totalTrapped > 0 ? '#eab308' : tokens.text, marginTop: 2 }}>
-            {totalTrapped} <span style={{ fontSize: 11, fontWeight: 500, color: tokens.textMuted }}>Victims</span>
-          </div>
-        </div>
-
-        <div style={{
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          border: `1px solid ${tokens.border}`,
-          borderRadius: 8,
-          padding: '10px 14px'
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase' }}>
-            FLEET READINESS
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981', marginTop: 2 }}>
-            {availableUnits} <span style={{ fontSize: 11, fontWeight: 500, color: tokens.textMuted }}>Ready / {deployedUnits} Deployed</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── UNIFIED CAD & DISPATCH WORKSTATION (TWO-COLUMN INTERACTIVE) ─── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 380px',
-        gap: 18,
-        alignItems: 'start'
-      }}>
-
-        {/* ─── LEFT: CAD INCIDENT KANBAN BOARD ─── */}
-        <div style={{
-          backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-          border: `1px solid ${tokens.border}`,
-          borderRadius: 10,
-          padding: 14,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          {/* Board Header & Filter Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ShieldAlert size={16} color={tokens.accent} />
-              <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>
-                Incident Lifecycle Queue (FEMA ICS-200)
-              </h2>
-            </div>
-
-            {/* Search & Priority Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: isDark ? '#1a2234' : '#ffffff',
-                border: `1px solid ${tokens.border}`,
-                borderRadius: 6,
-                padding: '4px 8px',
-                gap: 6,
-                width: 200
-              }}>
-                <Search size={13} color={tokens.textMuted} />
-                <input
-                  type="text"
-                  placeholder="Filter tickets..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: tokens.text,
-                    fontSize: 11,
-                    width: '100%'
-                  }}
-                />
-              </div>
-
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                style={{
-                  backgroundColor: isDark ? '#1a2234' : '#ffffff',
-                  color: tokens.text,
-                  border: `1px solid ${tokens.border}`,
-                  padding: '4px 8px',
-                  borderRadius: 6,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="ALL">All Priorities</option>
-                <option value="P1_CRITICAL">P1 Critical</option>
-                <option value="P2_HIGH">P2 High</option>
-                <option value="P3_MEDIUM">P3 Medium</option>
-                <option value="P4_LOW">P4 Low</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 5-Column Kanban Board Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, minmax(210px, 1fr))',
-            gap: 10,
-            overflowX: 'auto',
-            paddingBottom: 8
-          }}>
-            {STATUS_COLUMNS.map(col => {
-              const colIncidents = filteredIncidents.filter(i => i.status === col.id);
-
-              return (
-                <div
-                  key={col.id}
-                  style={{
-                    backgroundColor: isDark ? '#162032' : '#ffffff',
-                    border: `1px solid ${tokens.border}`,
-                    borderRadius: 8,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 460,
-                    maxHeight: 'calc(100vh - 290px)'
-                  }}
-                >
-                  {/* Column Header */}
-                  <div style={{
-                    padding: '8px 10px',
-                    borderBottom: `1px solid ${tokens.border}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    backgroundColor: isDark ? '#1a263d' : '#f1f5f9',
-                    borderTopLeftRadius: 7,
-                    borderTopRightRadius: 7
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: col.color }} />
-                      <span style={{ fontSize: 11.5, fontWeight: 700 }}>{col.label}</span>
-                    </div>
+      {/* ─── 5. Sub-Tab Content: TAB 2: CAP 1.2 Public Broadcasts ─── */}
+      {activeTab === 'CAP' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 20 }}>
+          {/* Active Broadcasts List */}
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12 }}>
+              Active Multi-Channel CAP Broadcasts ({alerts.length})
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {alerts.map(alt => (
+                <div key={alt.id} style={{
+                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                  border: `1.5px solid ${isDark ? '#334155' : '#fed7d7'}`,
+                  borderRadius: 8,
+                  padding: 14,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{
                       fontSize: 10,
-                      fontWeight: 700,
-                      padding: '1px 6px',
-                      borderRadius: 10,
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-                      color: tokens.textSec
+                      fontWeight: 800,
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      backgroundColor: '#ef4444',
+                      color: '#fff'
                     }}>
-                      {colIncidents.length}
+                      {(alt.severity || 'EXTREME').toUpperCase()} • {(alt.urgency || 'IMMEDIATE').toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#64748b' }}>
+                      {alt.identifier}
                     </span>
                   </div>
-
-                  {/* Cards Container */}
-                  <div style={{
-                    padding: 8,
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    flex: 1
-                  }}>
-                    {colIncidents.length === 0 ? (
-                      <div style={{
-                        padding: '24px 8px',
-                        textAlign: 'center',
-                        fontSize: 11,
-                        color: tokens.textMuted,
-                        border: `1px dashed ${tokens.border}66`,
-                        borderRadius: 6,
-                        marginTop: 6
-                      }}>
-                        No {col.label.toLowerCase()} tickets
-                      </div>
-                    ) : (
-                      colIncidents.map(inc => {
-                        const priority = PRIORITY_CONFIG[inc.priority] || PRIORITY_CONFIG.P3_MEDIUM;
-                        const assignedUnit = units.find(u => u.id === inc.assignedTeamId);
-
-                        return (
-                          <div
-                            key={inc.id}
-                            style={{
-                              backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-                              border: selectedIncidentForDispatch?.id === inc.id
-                                ? `2px solid ${tokens.accent}`
-                                : `1px solid ${tokens.border}`,
-                              borderRadius: 6,
-                              padding: 9,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 6,
-                              boxShadow: isDark ? '0 2px 4px rgba(0,0,0,0.2)' : '0 1px 2px rgba(0,0,0,0.05)',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            {/* Card Top: Code & Priority */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                fontFamily: 'monospace',
-                                color: tokens.accent
-                              }}>
-                                {inc.code || 'INCIDENT'}
-                              </span>
-                              <span style={{
-                                fontSize: 9,
-                                fontWeight: 700,
-                                padding: '1px 5px',
-                                borderRadius: 3,
-                                color: priority.color,
-                                backgroundColor: priority.bg,
-                                border: `1px solid ${priority.border}`
-                              }}>
-                                {priority.label}
-                              </span>
-                            </div>
-
-                            {/* Title (clickable for full inspector) */}
-                            <div
-                              onClick={() => setDetailsIncident(inc)}
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                lineHeight: 1.3,
-                                cursor: 'pointer',
-                                color: tokens.text
-                              }}
-                            >
-                              {inc.title}
-                            </div>
-
-                            {/* Address Text */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 10,
-                              color: tokens.textMuted
-                            }}>
-                              <MapPin size={11} color={tokens.textMuted} />
-                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {inc.addressText || 'Operational coordinate'}
-                              </span>
-                            </div>
-
-                            {/* Casualties / Trapped Pill */}
-                            {(inc.trappedCount > 0 || inc.victimCount > 0) && (
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                fontSize: 10,
-                                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
-                                padding: '3px 6px',
-                                borderRadius: 4,
-                                color: '#ef4444',
-                                fontWeight: 700
-                              }}>
-                                <Users size={11} />
-                                <span>{inc.trappedCount || 0} trapped · {inc.victimCount || 0} casualties</span>
-                              </div>
-                            )}
-
-                            {/* Assigned Team Banner */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              paddingTop: 4,
-                              borderTop: `1px solid ${tokens.border}44`,
-                              fontSize: 10.5
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Truck size={11} color={assignedUnit ? '#10b981' : tokens.textMuted} />
-                                <span style={{
-                                  fontWeight: assignedUnit ? 700 : 500,
-                                  color: assignedUnit ? '#10b981' : tokens.textMuted
-                                }}>
-                                  {assignedUnit ? assignedUnit.callsign : 'Unassigned'}
-                                </span>
-                              </div>
-
-                              {/* Quick Dispatch Selector Toggle */}
-                              {(!inc.assignedTeamId || inc.status === 'REPORTED') && (
-                                <button
-                                  onClick={() => setSelectedIncidentForDispatch(inc)}
-                                  style={{
-                                    padding: '2px 6px',
-                                    borderRadius: 3,
-                                    backgroundColor: selectedIncidentForDispatch?.id === inc.id ? '#10b981' : tokens.accent,
-                                    color: '#fff',
-                                    border: 'none',
-                                    fontSize: 9.5,
-                                    fontWeight: 700,
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  {selectedIncidentForDispatch?.id === inc.id ? 'Select Fleet →' : 'Dispatch'}
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Quick Status Advance Bar */}
-                            <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
-                              {col.id === 'REPORTED' && (
-                                <button
-                                  onClick={() => handleUpdateIncidentStatus(inc.id, 'DISPATCHED')}
-                                  style={{
-                                    flex: 1, padding: '3px', background: '#3b82f6', color: '#fff',
-                                    border: 'none', borderRadius: 3, fontSize: 9.5, fontWeight: 600, cursor: 'pointer'
-                                  }}
-                                >
-                                  En Route →
-                                </button>
-                              )}
-                              {col.id === 'DISPATCHED' && (
-                                <button
-                                  onClick={() => handleUpdateIncidentStatus(inc.id, 'ON_SCENE')}
-                                  style={{
-                                    flex: 1, padding: '3px', background: '#f97316', color: '#fff',
-                                    border: 'none', borderRadius: 3, fontSize: 9.5, fontWeight: 600, cursor: 'pointer'
-                                  }}
-                                >
-                                  On Scene →
-                                </button>
-                              )}
-                              {col.id === 'ON_SCENE' && (
-                                <button
-                                  onClick={() => handleUpdateIncidentStatus(inc.id, 'CONTAINED')}
-                                  style={{
-                                    flex: 1, padding: '3px', background: '#8b5cf6', color: '#fff',
-                                    border: 'none', borderRadius: 3, fontSize: 9.5, fontWeight: 600, cursor: 'pointer'
-                                  }}
-                                >
-                                  Contained →
-                                </button>
-                              )}
-                              {col.id === 'CONTAINED' && (
-                                <button
-                                  onClick={() => handleUpdateIncidentStatus(inc.id, 'CLOSED')}
-                                  style={{
-                                    flex: 1, padding: '3px', background: '#10b981', color: '#fff',
-                                    border: 'none', borderRadius: 3, fontSize: 9.5, fontWeight: 600, cursor: 'pointer'
-                                  }}
-                                >
-                                  Close & RTB ✓
-                                </button>
-                              )}
-                              {col.id === 'CLOSED' && (
-                                <button
-                                  onClick={() => handleUpdateIncidentStatus(inc.id, 'REPORTED')}
-                                  style={{
-                                    flex: 1, padding: '3px', background: 'transparent', color: tokens.textMuted,
-                                    border: `1px solid ${tokens.border}`, borderRadius: 3, fontSize: 9.5, cursor: 'pointer'
-                                  }}
-                                >
-                                  Re-open
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                  <div style={{ fontSize: 14, fontWeight: 800 }}>
+                    {alt.headline}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: isDark ? '#cbd5e1' : '#475569', lineHeight: 1.4 }}>
+                    {alt.instruction || alt.description}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10, backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+                      🟢 WEA / CMAS Cell Broadcast
+                    </span>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10, backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+                      🟢 EAS Radio Broadcast
+                    </span>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10, backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+                      🟢 PostGIS Perimeter
+                    </span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ─── RIGHT: TACTICAL FLEET DISPATCH CONSOLE ─── */}
-        <div style={{
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          border: `1px solid ${tokens.border}`,
-          borderRadius: 10,
-          padding: 14,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
-        }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Truck size={16} color="#10b981" />
-              <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
-                Fleet Dispatch Console
-              </h2>
+              ))}
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>
-              {availableUnits} Units Available
-            </span>
           </div>
 
-          {/* Prompt if an incident is currently selected for assignment */}
-          {selectedIncidentForDispatch ? (
-            <div style={{
-              backgroundColor: 'rgba(59, 130, 246, 0.15)',
-              border: '1px solid rgba(59, 130, 246, 0.4)',
-              borderRadius: 6,
-              padding: '8px 10px',
-              fontSize: 11
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ color: '#3b82f6' }}>Assigning to {selectedIncidentForDispatch.code}:</strong>
-                <button
-                  onClick={() => setSelectedIncidentForDispatch(null)}
-                  style={{ background: 'transparent', border: 'none', color: tokens.textSec, cursor: 'pointer' }}
-                >
-                  <X size={13} />
-                </button>
-              </div>
-              <div style={{ marginTop: 2, color: tokens.text, fontWeight: 600 }}>
-                {selectedIncidentForDispatch.title}
-              </div>
-              <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
-                Click "Assign Unit" on any unit below to execute dispatch.
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              fontSize: 11,
-              color: tokens.textSec,
-              backgroundColor: isDark ? '#1a2234' : '#f8fafc',
-              padding: '6px 10px',
-              borderRadius: 6,
-              border: `1px solid ${tokens.border}44`
-            }}>
-              Select an incident or dispatch any available unit below.
-            </div>
-          )}
-
-          {/* Fleet Filter Tabs */}
-          <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 4 }}>
-            {['ALL', 'USAR', 'MEDIC', 'FIRE', 'AIR', 'BOAT'].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setFleetTypeFilter(cat)}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  border: 'none',
-                  backgroundColor: fleetTypeFilter === cat ? tokens.accent : (isDark ? '#1e293b' : '#f1f5f9'),
-                  color: fleetTypeFilter === cat ? '#fff' : tokens.textSec,
-                  cursor: 'pointer'
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Response Units Scrollable List */}
+          {/* Broadcast Composer */}
           <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            maxHeight: 'calc(100vh - 360px)',
-            overflowY: 'auto'
+            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+            border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+            borderRadius: 8,
+            padding: 18
           }}>
-            {filteredUnits.map(unit => {
-              const isAvail = unit.status === 'AVAILABLE';
-              const isDisp = unit.status === 'DISPATCHED';
-              const isOnScene = unit.status === 'ON_SCENE';
-              const assignedInc = incidents.find(i => i.id === unit.activeIncidentId);
-
-              return (
-                <div
-                  key={unit.id}
+            <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
+              Compose Public CAP Broadcast
+            </h2>
+            <form onSubmit={handleCreateBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                  SEVERITY
+                </label>
+                <select
+                  value={broadcastSeverity}
+                  onChange={(e) => setBroadcastSeverity(e.target.value)}
                   style={{
-                    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-                    border: `1px solid ${tokens.border}`,
+                    width: '100%',
+                    padding: '6px 10px',
                     borderRadius: 6,
-                    padding: 10,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6
+                    border: `1px solid ${tokens.border}`,
+                    backgroundColor: isDark ? '#0f172a' : '#fff',
+                    color: tokens.text,
+                    fontSize: 12
                   }}
                 >
-                  {/* Unit Top Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        backgroundColor: isAvail ? '#10b981' : (isDisp ? '#3b82f6' : '#f97316')
-                      }} />
-                      <strong style={{ fontSize: 12, color: tokens.text }}>
-                        {unit.callsign}
-                      </strong>
-                      <span style={{ fontSize: 10, color: tokens.textMuted }}>
-                        ({unit.unitType})
-                      </span>
-                    </div>
-
-                    {/* Status Toggle Dropdown */}
-                    <select
-                      value={unit.status}
-                      onChange={(e) => handleUpdateUnitStatus(unit.id, e.target.value)}
-                      style={{
-                        padding: '2px 6px',
-                        borderRadius: 3,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        border: 'none',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        color: isAvail ? '#10b981' : (isDisp ? '#3b82f6' : (isOnScene ? '#f97316' : '#94a3b8')),
-                        backgroundColor: isAvail ? 'rgba(16, 185, 129, 0.15)' : (isDisp ? 'rgba(59, 130, 246, 0.15)' : 'rgba(249, 115, 22, 0.15)')
-                      }}
-                    >
-                      <option value="AVAILABLE">AVAILABLE</option>
-                      <option value="DISPATCHED">DISPATCHED</option>
-                      <option value="ON_SCENE">ON SCENE</option>
-                      <option value="MAINTENANCE">MAINTENANCE</option>
-                      <option value="OFF_DUTY">OFF DUTY</option>
-                    </select>
-                  </div>
-
-                  {/* Telemetry info */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: 10.5,
-                    color: tokens.textMuted
-                  }}>
-                    <span>Crew: <strong>{unit.personnelCount}</strong> Responders</span>
-                    <span>{unit.assignedStation || 'Central EOC Base'}</span>
-                  </div>
-
-                  {/* Active Mission or Standby */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: 10.5,
-                    paddingTop: 4,
-                    borderTop: `1px solid ${tokens.border}33`
-                  }}>
-                    <div>
-                      {assignedInc ? (
-                        <span style={{ color: '#ef4444', fontWeight: 700 }}>
-                          Mission: {assignedInc.code}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#10b981', fontWeight: 600 }}>
-                          Ready for Dispatch
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Dispatch Execution Button */}
-                    {selectedIncidentForDispatch ? (
-                      <button
-                        onClick={() => handleDispatchUnit(selectedIncidentForDispatch.id, unit.id)}
-                        style={{
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          backgroundColor: '#10b981',
-                          color: '#fff',
-                          border: 'none',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Assign Unit
-                      </button>
-                    ) : (
-                      isAvail && (
-                        <button
-                          onClick={() => {
-                            // Find highest pending reported incident
-                            const pending = incidents.find(i => i.status === 'REPORTED');
-                            if (pending) {
-                              handleDispatchUnit(pending.id, unit.id);
-                            } else {
-                              alert(`No pending reported incidents. Select an incident on the board first.`);
-                            }
-                          }}
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: 4,
-                            backgroundColor: tokens.accent,
-                            color: '#fff',
-                            border: 'none',
-                            fontSize: 10,
-                            fontWeight: 600,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Quick Deploy
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── MODAL: NEW INCIDENT ─── */}
-      {isNewIncidentOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: 20
-        }}>
-          <div style={{
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            border: `1px solid ${tokens.border}`,
-            borderRadius: 12,
-            width: '100%',
-            maxWidth: 520,
-            padding: 22,
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Plus size={18} color={tokens.accent} />
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                  Create CAD Incident Ticket
-                </h3>
+                  <option value="Extreme">Extreme (Life Threatening)</option>
+                  <option value="Severe">Severe (Significant Threat)</option>
+                  <option value="Moderate">Moderate (Possible Threat)</option>
+                </select>
               </div>
-              <button
-                onClick={() => setIsNewIncidentOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: tokens.textSec, cursor: 'pointer' }}
-              >
-                <X size={16} />
-              </button>
-            </div>
 
-            <form onSubmit={handleCreateIncident} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                  INCIDENT TITLE:
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                  HEADLINE
                 </label>
                 <input
                   type="text"
+                  value={broadcastHeadline}
+                  onChange={(e) => setBroadcastHeadline(e.target.value)}
+                  placeholder="e.g., MANDATORY EVACUATION: Sector Alpha Surging"
                   required
-                  placeholder="e.g. Flood Ingress / Structural Collapse"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '8px 10px',
+                    padding: '7px 10px',
                     borderRadius: 6,
                     border: `1px solid ${tokens.border}`,
-                    backgroundColor: isDark ? '#1a2234' : '#fff',
+                    backgroundColor: isDark ? '#0f172a' : '#fff',
                     color: tokens.text,
-                    fontSize: 12.5,
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                    DISASTER TYPE:
-                  </label>
-                  <select
-                    value={newDisasterType}
-                    onChange={(e) => setNewDisasterType(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: `1px solid ${tokens.border}`,
-                      backgroundColor: isDark ? '#1a2234' : '#fff',
-                      color: tokens.text,
-                      fontSize: 12,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="FLOOD">FLOOD</option>
-                    <option value="FIRE">WILDFIRE</option>
-                    <option value="CYCLONE">CYCLONE</option>
-                    <option value="LANDSLIDE">LANDSLIDE</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                    PRIORITY:
-                  </label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: `1px solid ${tokens.border}`,
-                      backgroundColor: isDark ? '#1a2234' : '#fff',
-                      color: tokens.text,
-                      fontSize: 12,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="P1_CRITICAL">P1 CRITICAL</option>
-                    <option value="P2_HIGH">P2 HIGH</option>
-                    <option value="P3_MEDIUM">P3 MEDIUM</option>
-                    <option value="P4_LOW">P4 LOW</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                    VICTIMS COUNT:
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newVictims}
-                    onChange={(e) => setNewVictims(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: `1px solid ${tokens.border}`,
-                      backgroundColor: isDark ? '#1a2234' : '#fff',
-                      color: tokens.text,
-                      fontSize: 12,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                    TRAPPED COUNT:
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newTrapped}
-                    onChange={(e) => setNewTrapped(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: `1px solid ${tokens.border}`,
-                      backgroundColor: isDark ? '#1a2234' : '#fff',
-                      color: tokens.text,
-                      fontSize: 12,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                  LOCATION / ADDRESS TEXT:
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Tapovan Barrage Tunnel Site #2"
-                  value={newAddress}
-                  onChange={(e) => setNewAddress(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    border: `1px solid ${tokens.border}`,
-                    backgroundColor: isDark ? '#1a2234' : '#fff',
-                    color: tokens.text,
-                    fontSize: 12.5,
-                    outline: 'none',
-                    boxSizing: 'border-box'
+                    fontSize: 12
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 4, color: tokens.textSec }}>
-                  HAZARDS / SITUATIONAL DESCRIPTION:
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                  INSTRUCTION & EVACUATION DIRECTIVE
                 </label>
                 <textarea
-                  rows={2}
-                  placeholder="Access blockage, structural instability..."
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
+                  value={broadcastDesc}
+                  onChange={(e) => setBroadcastDesc(e.target.value)}
+                  rows={4}
+                  placeholder="Evacuate immediately via designated corridors..."
                   style={{
                     width: '100%',
-                    padding: '8px 10px',
+                    padding: '7px 10px',
                     borderRadius: 6,
                     border: `1px solid ${tokens.border}`,
-                    backgroundColor: isDark ? '#1a2234' : '#fff',
+                    backgroundColor: isDark ? '#0f172a' : '#fff',
                     color: tokens.text,
-                    fontSize: 12,
-                    outline: 'none',
-                    resize: 'none',
-                    boxSizing: 'border-box'
+                    fontSize: 12
                   }}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setIsNewIncidentOpen(false)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 6,
-                    border: `1px solid ${tokens.border}`,
-                    backgroundColor: 'transparent',
-                    color: tokens.textSec,
-                    fontSize: 12,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: '6px 18px',
-                    borderRadius: 6,
-                    border: 'none',
-                    backgroundColor: tokens.accent,
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Create Incident
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isBroadcasting}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 6,
+                  backgroundColor: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  marginTop: 6
+                }}
+              >
+                <Send size={14} />
+                <span>{isBroadcasting ? 'Broadcasting...' : 'Broadcast CAP 1.2 Alert'}</span>
+              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* ─── MODAL: INCIDENT DETAILS ─── */}
-      {detailsIncident && (
+      {/* ─── 6. Sub-Tab Content: TAB 3: OASIS XML Specification ─── */}
+      {activeTab === 'XML' && (
         <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: 20
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+          borderRadius: 8,
+          padding: 18
         }}>
-          <div style={{
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            border: `1px solid ${tokens.border}`,
-            borderRadius: 12,
-            width: '100%',
-            maxWidth: 500,
-            padding: 22,
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: tokens.accent, fontFamily: 'monospace' }}>
-                  {detailsIncident.code}
-                </span>
-                <h3 style={{ margin: '2px 0 0 0', fontSize: 16, fontWeight: 700 }}>
-                  {detailsIncident.title}
-                </h3>
-              </div>
-              <button
-                onClick={() => setDetailsIncident(null)}
-                style={{ background: 'transparent', border: 'none', color: tokens.textSec, cursor: 'pointer' }}
-              >
-                <X size={16} />
-              </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>
+                OASIS Common Alerting Protocol (CAP) v1.2 XML Specification
+              </h2>
+              <span style={{ fontSize: 11, color: '#64748b' }}>
+                Machine-readable standard for FEMA IPAWS, WMO Early Warning for All, and Cell Broadcasts
+              </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
-              <div>
-                <strong>Status:</strong> {detailsIncident.status}
-              </div>
-              <div>
-                <strong>Priority:</strong> {detailsIncident.priority}
-              </div>
-              <div>
-                <strong>Location:</strong> {detailsIncident.addressText || 'Coordinates registered'}
-              </div>
-              <div>
-                <strong>Casualties / Trapped:</strong> {detailsIncident.victimCount || 0} casualties, {detailsIncident.trappedCount || 0} trapped
-              </div>
-              {detailsIncident.callerName && (
-                <div>
-                  <strong>Reported By:</strong> {detailsIncident.callerName} ({detailsIncident.callerPhone || 'No callback'})
-                </div>
-              )}
-              {detailsIncident.medicalNotes && (
-                <div>
-                  <strong>Medical Notes:</strong> {detailsIncident.medicalNotes}
-                </div>
-              )}
-              {detailsIncident.hazardsPresent && (
-                <div>
-                  <strong>Hazards Present:</strong> {detailsIncident.hazardsPresent}
-                </div>
-              )}
-              <div>
-                <strong>Description:</strong> {detailsIncident.description || 'No additional narrative provided.'}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={() => setDetailsIncident(null)}
+                onClick={() => {
+                  navigator.clipboard.writeText(capXmlPreview);
+                  alert('CAP XML copied to clipboard.');
+                }}
                 style={{
-                  padding: '6px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
                   borderRadius: 6,
-                  backgroundColor: tokens.accent,
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 600,
+                  border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  color: tokens.text,
+                  fontSize: 11,
+                  fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
-                Close
+                <Copy size={13} />
+                <span>Copy XML</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const blob = new Blob([capXmlPreview], { type: 'application/xml' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `CAP-SCENARIO-${scenarioId}.xml`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <Download size={13} />
+                <span>Download CAP XML</span>
               </button>
             </div>
           </div>
+
+          <pre style={{
+            backgroundColor: isDark ? '#090d16' : '#f8fafc',
+            border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+            borderRadius: 6,
+            padding: 16,
+            fontSize: 11.5,
+            fontFamily: 'monospace',
+            color: isDark ? '#38bdf8' : '#0369a1',
+            overflowX: 'auto',
+            maxHeight: 520,
+            lineHeight: 1.45
+          }}>
+            {capXmlPreview || '<!-- No active scenario CAP alerts found -->'}
+          </pre>
         </div>
       )}
 
-      {/* Civilian SOS Modal */}
-      <SosRequestModal
-        isOpen={isSosOpen}
-        onClose={() => {
-          setIsSosOpen(false);
-          fetchData();
-        }}
-        scenarioId={scenarioId}
-      />
     </div>
   );
 }

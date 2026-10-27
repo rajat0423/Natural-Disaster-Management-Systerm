@@ -17,8 +17,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import * as Cesium from 'cesium';
 import CesiumGlobe from '../components/globe/CesiumGlobe';
-import { Layers, ChevronRight, X, Satellite, Globe, Map as MapIcon } from 'lucide-react';
+import { Layers, ChevronRight, ChevronDown, ChevronUp, ShieldAlert, BellOff, X, Satellite, Globe, Map as MapIcon, Volume2, VolumeX, ExternalLink, FileCode } from 'lucide-react';
 
 const DAMAGE_COLORS = {
   'no-damage': '#10b981',
@@ -117,7 +118,12 @@ function DisasterMap() {
   const [activeRoute, setActiveRoute] = useState(null);
   const [isLegendCollapsed, setIsLegendCollapsed] = useState(false);
   const [activeAlertsList, setActiveAlertsList] = useState([]);
-  const [isAlertDrawerOpen, setIsAlertDrawerOpen] = useState(false);
+  const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
+  const [isAlertBannerDismissed, setIsAlertBannerDismissed] = useState(false);
+  const [isSirenActive, setIsSirenActive] = useState(false);
+  const audioCtxRef = useRef(null);
+  const oscRef = useRef(null);
+  const sirenIntervalRef = useRef(null);
 
   // Raw GeoJSON Data Cache
   const rawDataRef = useRef({
@@ -152,12 +158,19 @@ function DisasterMap() {
 
       Object.values(layerGroupsRef.current).forEach(lg => lg.addTo(map));
       mapInstanceRef.current = map;
-      setTimeout(() => map.invalidateSize(), 200);
+      setTimeout(() => {
+        try {
+          if (mapInstanceRef.current && mapContainerRef.current) {
+            map.invalidateSize();
+          }
+        } catch (e) {}
+      }, 200);
     }
 
     loadScenarios();
 
     return () => {
+      stopSiren();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -828,6 +841,44 @@ function DisasterMap() {
               </div>
             </div>
           `);
+
+          // Visible Centroid Evacuation Badge (Matches Screenshot 3)
+          if (layer.getBounds && layer.getBounds().isValid()) {
+            const center = layer.getBounds().getCenter();
+            const alertBadgeHtml = `
+              <div style="
+                background: rgba(220, 38, 38, 0.95);
+                border: 2px solid #ffffff;
+                color: #ffffff;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-family: Inter, sans-serif;
+                font-size: 10px;
+                font-weight: 800;
+                white-space: nowrap;
+                box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                letter-spacing: 0.02em;
+              ">
+                <span>⚠️</span>
+                <span>${p.severity === 'Extreme' ? 'IMMEDIATE EVACUATION ORDER' : (p.event || 'EMERGENCY WARNING')}</span>
+              </div>
+            `;
+            const icon = L.divIcon({
+              html: alertBadgeHtml,
+              className: 'alert-centroid-badge',
+              iconSize: [180, 24],
+              iconAnchor: [90, 12]
+            });
+            const marker = L.marker(center, { icon, interactive: true });
+            marker.on('click', () => {
+              setIsAlertCenterOpen(true);
+            });
+            alerts.addLayer(marker);
+          }
         }
       });
       alerts.addLayer(alertLayer);
@@ -1016,6 +1067,77 @@ function DisasterMap() {
   }
 
   
+  // Two-Tone Acoustic Distress Siren (960 Hz / 770 Hz)
+  const toggleSiren = () => {
+    if (isSirenActive) {
+      stopSiren();
+    } else {
+      startSiren();
+    }
+  };
+
+  const startSiren = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+
+      let hi = true;
+      sirenIntervalRef.current = setInterval(() => {
+        if (ctx.state === 'running') {
+          osc.frequency.setValueAtTime(hi ? 960 : 770, ctx.currentTime);
+          hi = !hi;
+        }
+      }, 450);
+
+      oscRef.current = osc;
+      setIsSirenActive(true);
+    } catch (e) {
+      console.warn('Audio siren blocked or unsupported:', e);
+    }
+  };
+
+  const stopSiren = () => {
+    if (sirenIntervalRef.current) {
+      clearInterval(sirenIntervalRef.current);
+      sirenIntervalRef.current = null;
+    }
+    if (oscRef.current) {
+      try { oscRef.current.stop(); } catch (e) {}
+      oscRef.current = null;
+    }
+    setIsSirenActive(false);
+  };
+
+  const handleDownloadCapXml = async (alertId, identifier) => {
+    try {
+      const res = await api.get(`/alerts/${alertId}/cap.xml`, { responseType: 'text' });
+      const blob = new Blob([res.data], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CAP-${identifier || alertId}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Failed to download CAP XML: ' + (e.response?.data?.message || e.message));
+    }
+  };
+
+  const handleToggleAlertOverlays = () => {
+    setLayers(prev => ({ ...prev, alerts: !prev.alerts }));
+  };
+
   // Center / Fly to Alert on Map (2D or 3D)
   const centerMapOnAlert = (alert) => {
     let lat = null, lon = null;
@@ -1159,7 +1281,7 @@ function DisasterMap() {
               onClick={() => {
                 setMapViewMode('2D');
                 if (mapInstanceRef.current) {
-                  setTimeout(() => mapInstanceRef.current.invalidateSize(), 150);
+                  setTimeout(() => { try { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); } catch (e) {} }, 150);
                 }
               }}
               style={{
@@ -1465,10 +1587,57 @@ function DisasterMap() {
 
         {/* Layer Toggles */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
-            Map Layers
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Map Layers
+            </span>
+            {activeAlertsList.length > 0 && (
+              <span style={{
+                fontSize: '9px',
+                fontWeight: 800,
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                letterSpacing: '0.02em'
+              }}>
+                ALERTS ({activeAlertsList.length})
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '11px' }}>
+            {/* Emergency Alerts (CAP) Layer at Top */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              color: '#ef4444',
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fff5f5',
+              padding: '4px 6px',
+              borderRadius: '5px',
+              border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.3)' : '#fee2e2'}`
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <input
+                  type="checkbox"
+                  checked={layers.alerts}
+                  onChange={(e) => setLayers({ ...layers, alerts: e.target.checked })}
+                />
+                <span style={{ fontWeight: 700 }}>🚨 Emergency Alerts (CAP)</span>
+              </span>
+              <span style={{
+                fontSize: '9px',
+                fontWeight: 800,
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                padding: '1px 5px',
+                borderRadius: '3px'
+              }}>
+                {rawDataRef.current.alerts?.features?.length || 0}
+              </span>
+            </label>
+
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: tokens.textPrimary }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <input
@@ -1602,165 +1771,454 @@ function DisasterMap() {
       {/* ============================================================ */}
       <div style={{ flex: 1, position: 'relative', height: '100%', overflow: 'hidden' }}>
 
-        {/* On-Map Interactive CAP Alerts Badge & Expandable Drawer */}
-        {activeAlertsList.length > 0 && (
+        {/* 1. On-Map Floating Alert Capsule (Matches Screenshot 3) */}
+        {activeAlertsList.length > 0 && !isAlertBannerDismissed && (
           <div style={{
             position: 'absolute',
-            top: '16px',
-            right: '18px',
+            top: '12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
             zIndex: 1050,
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
+            alignItems: 'center',
             gap: '8px',
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+            backgroundColor: isDark ? 'rgba(30, 20, 20, 0.95)' : 'rgba(254, 242, 242, 0.96)',
+            border: `1.5px solid ${isDark ? '#ef4444' : '#f87171'}`,
+            borderRadius: '24px',
+            padding: '4px 12px',
+            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.22)',
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+            maxWidth: '92%'
           }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444', flexShrink: 0 }} />
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 800,
+              color: isDark ? '#fca5a5' : '#991b1b',
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: 320
+            }}>
+              ALERT ACTIVE ({activeAlertsList.length}) {activeAlertsList[0]?.headline || 'MANDATORY EVACUATION: Raini Ground Zero Core (Upper)'}
+            </span>
+
             <button
-              onClick={() => setIsAlertDrawerOpen(!isAlertDrawerOpen)}
+              onClick={() => setIsAlertCenterOpen(!isAlertCenterOpen)}
+              style={{
+                padding: '2px 8px',
+                borderRadius: '12px',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '10px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                letterSpacing: '0.02em',
+                flexShrink: 0
+              }}
+              title="Open OASIS CAP 1.2 Alert Center briefing"
+            >
+              BRIEFING {activeAlertsList.length}
+            </button>
+
+            <button
+              onClick={toggleSiren}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '7px',
-                padding: '7px 14px',
-                borderRadius: '20px',
-                border: '1.5px solid #ef4444',
-                backgroundColor: isDark ? 'rgba(153, 27, 27, 0.95)' : '#ef4444',
-                color: '#ffffff',
-                fontSize: '11px',
-                fontWeight: 800,
+                gap: '3px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                border: '1px solid #fca5a5',
+                backgroundColor: isSirenActive ? '#ef4444' : 'transparent',
+                color: isSirenActive ? '#ffffff' : '#b91c1c',
+                fontSize: '10px',
+                fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(239, 68, 68, 0.45)',
-                backdropFilter: 'blur(8px)',
-                letterSpacing: '0.02em'
+                flexShrink: 0
               }}
-              title="Click to view and inspect active CAP alerts on map"
+              title="Toggle acoustic siren"
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#fff' }} />
-              <span>🚨 Active Alerts ({activeAlertsList.length})</span>
-              {isAlertDrawerOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {isSirenActive ? <VolumeX size={11} /> : <Volume2 size={11} />}
+              <span>SIREN</span>
             </button>
 
-            {isAlertDrawerOpen && (
-              <div style={{
-                width: 360,
-                maxHeight: 'calc(100vh - 240px)',
-                overflowY: 'auto',
-                backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                border: `1.5px solid ${tokens.border}`,
-                borderRadius: 10,
-                padding: 14,
-                boxShadow: '0 16px 36px rgba(0, 0, 0, 0.65)',
+            <button
+              onClick={() => navigate(`/scenario/${selectedScenarioId}/emergency`)}
+              style={{
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-                backdropFilter: 'blur(10px)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottom: `1px solid ${tokens.border}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <ShieldAlert size={15} color="#ef4444" />
-                    <span style={{ fontSize: 12, fontWeight: 800, color: '#ef4444' }}>
-                      Active CAP 1.2 Broadcasts
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleTurnOffAllAlertsOnMap}
-                    style={{
-                      padding: '3px 8px',
-                      borderRadius: 4,
-                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                      border: '1px solid rgba(239, 68, 68, 0.4)',
-                      color: '#ef4444',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                    title="Silence and deactivate all active scenario alerts"
-                  >
-                    Turn Off All
-                  </button>
-                </div>
+                alignItems: 'center',
+                gap: '3px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                border: '1px solid #93c5fd',
+                backgroundColor: 'transparent',
+                color: '#1d4ed8',
+                fontSize: '10px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              title="Go to CAD & Dispatch operations console"
+            >
+              <span>CAD</span>
+              <ExternalLink size={10} />
+            </button>
 
-                {activeAlertsList.map(alt => (
-                  <div key={alt.id} style={{
-                    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-                    border: `1px solid ${tokens.border}`,
-                    borderRadius: 6,
-                    padding: 10,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: tokens.accent, fontFamily: 'monospace' }}>
-                        {alt.identifier}
-                      </span>
-                      <span style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: '1px 5px',
-                        borderRadius: 3,
-                        backgroundColor: alt.severity === 'Extreme' ? '#ef4444' : '#f97316',
-                        color: '#fff'
-                      }}>
-                        {alt.severity}
-                      </span>
-                    </div>
+            <button
+              onClick={handleTurnOffAllAlertsOnMap}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                border: '1px solid #fca5a5',
+                backgroundColor: 'transparent',
+                color: '#dc2626',
+                fontSize: '10px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              title="Silence sirens and deactivate all alerts on map"
+            >
+              <BellOff size={11} />
+              <span>Turn Off</span>
+            </button>
 
-                    <div style={{ fontSize: 12, fontWeight: 700, color: tokens.text, lineHeight: 1.3 }}>
-                      {alt.headline}
-                    </div>
-
-                    <div style={{ fontSize: 10.5, color: tokens.textSec, lineHeight: 1.4 }}>
-                      {alt.instruction || alt.description}
-                    </div>
-
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                      <button
-                        onClick={() => centerMapOnAlert(alt)}
-                        style={{
-                          flex: 1,
-                          padding: '5px 8px',
-                          borderRadius: 4,
-                          backgroundColor: tokens.accent,
-                          color: '#fff',
-                          border: 'none',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 4
-                        }}
-                      >
-                        <span>🎯</span> Center on Map
-                      </button>
-
-                      <button
-                        onClick={() => handleTurnOffAlertOnMap(alt.id)}
-                        style={{
-                          padding: '5px 10px',
-                          borderRadius: 4,
-                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                          border: '1px solid rgba(239, 68, 68, 0.4)',
-                          color: '#ef4444',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Turn Off
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <button
+              onClick={() => setIsAlertBannerDismissed(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '13px',
+                cursor: 'pointer',
+                padding: '0 2px',
+                lineHeight: 1
+              }}
+              title="Dismiss banner"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        {/* 3D Cesium Earth Engine View */}
+        {/* 2. OASIS CAP 1.2 Alert Center Modal (Matches Screenshot 2) */}
+        {isAlertCenterOpen && (
+          <div style={{
+            position: 'absolute',
+            top: '48px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '500px',
+            maxHeight: 'calc(100vh - 160px)',
+            overflowY: 'auto',
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            border: `1.5px solid ${isDark ? '#334155' : '#fecaca'}`,
+            borderRadius: '10px',
+            padding: '16px',
+            boxShadow: '0 20px 48px rgba(0,0,0,0.35)',
+            zIndex: 2000,
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              paddingBottom: '12px',
+              borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  backgroundColor: '#fee2e2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <ShieldAlert size={18} color="#ef4444" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                    OASIS CAP 1.2 Alert Center
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                    Common Alerting Protocol Broadcast Subsystem
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAlertCenterOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '16px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Acoustic Siren Array Section */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+              border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+              borderRadius: '8px',
+              padding: '10px 14px',
+              marginTop: '12px'
+            }}>
+              <div>
+                <div style={{ fontSize: '11.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                  Acoustic Siren Array: <span style={{ color: isSirenActive ? '#ef4444' : '#64748b' }}>{isSirenActive ? 'ACTIVE' : 'IDLE'}</span>
+                </div>
+                <div style={{ fontSize: '10px', color: '#64748b' }}>
+                  Coverage: 115 dB Omni-Directional Alert Horns
+                </div>
+              </div>
+              <button
+                onClick={toggleSiren}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {isSirenActive ? '🔊 STOP SIREN' : '🔊 TEST SIREN'}
+              </button>
+            </div>
+
+            {/* Map Alert Overlays Section */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+              border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+              borderRadius: '8px',
+              padding: '10px 14px',
+              marginTop: '8px'
+            }}>
+              <div>
+                <div style={{ fontSize: '11.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                  Map Alert Overlays: <span style={{ color: layers.alerts ? '#10b981' : '#64748b' }}>{layers.alerts ? '🔴 ACTIVE ON MAP' : '⚪ OFF'}</span>
+                </div>
+                <div style={{ fontSize: '10px', color: '#64748b' }}>
+                  Red hazard perimeters and siren badges rendered
+                </div>
+              </div>
+              <button
+                onClick={handleToggleAlertOverlays}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fff5f5',
+                  color: '#dc2626',
+                  border: '1px solid #fca5a5',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {layers.alerts ? '🚫 Turn Off from Map' : 'Enable on Map'}
+              </button>
+            </div>
+
+            {/* Active Broadcast Alerts Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '14px',
+              marginBottom: '8px'
+            }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.04em' }}>
+                ACTIVE BROADCAST ALERTS ({activeAlertsList.length})
+              </span>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#10b981' }} />
+                EOC DISPATCH SYNCED
+              </span>
+            </div>
+
+            {/* List of Alerts */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {activeAlertsList.map(alt => (
+                <div key={alt.id} style={{
+                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                  border: `1px solid ${isDark ? '#334155' : '#fed7d7'}`,
+                  borderRadius: '8px',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      letterSpacing: '0.04em'
+                    }}>
+                      {(alt.severity || 'EXTREME').toUpperCase()} • {(alt.urgency || 'IMMEDIATE').toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', fontFamily: 'monospace' }}>
+                      {alt.identifier}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '12.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', lineHeight: 1.3 }}>
+                    {alt.headline}
+                  </div>
+
+                  <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.4 }}>
+                    {alt.instruction || alt.description}
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#047857', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: '10px' }}>
+                      🟢 WEA / CMAS Cell Broadcast
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#047857', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: '10px' }}>
+                      🟢 EAS Radio Broadcast
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#047857', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 6px', borderRadius: '10px' }}>
+                      🟢 PostGIS Perimeter
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => {
+                        centerMapOnAlert(alt);
+                        setIsAlertCenterOpen(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        backgroundColor: '#0284c7',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <span>🎯</span> Locate on Map
+                    </button>
+                    <button
+                      onClick={() => handleDownloadCapXml(alt.id, alt.identifier)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        backgroundColor: '#ffffff',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span>📄</span> CAP XML
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Floating 2D / 3D Switcher at Top Right (Matches Screenshot 3) */}
+        <div style={{
+          position: 'absolute',
+          top: '12px',
+          right: '54px',
+          zIndex: 1040,
+          display: 'flex',
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+          border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+          borderRadius: '20px',
+          padding: '2px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <button
+            onClick={() => {
+              setMapViewMode('2D');
+              if (mapInstanceRef.current) {
+                setTimeout(() => { try { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); } catch (e) {} }, 100);
+              }
+            }}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '16px',
+              border: 'none',
+              backgroundColor: mapViewMode === '2D' ? '#0284c7' : 'transparent',
+              color: mapViewMode === '2D' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <MapIcon size={12} /> 2D Map
+          </button>
+          <button
+            onClick={() => {
+              setMapViewMode('3D');
+              if (window.__DRAS_CESIUM_VIEWER__ && !window.__DRAS_CESIUM_VIEWER__.isDestroyed()) {
+                window.__DRAS_CESIUM_VIEWER__.resize();
+              }
+            }}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '16px',
+              border: 'none',
+              backgroundColor: mapViewMode === '3D' ? '#0284c7' : 'transparent',
+              color: mapViewMode === '3D' ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <Globe size={12} /> 3D Globe
+          </button>
+        </div>
+
+{/* 3D Cesium Earth Engine View */}
         {mapViewMode === '3D' && (
           <CesiumGlobe
             selectedScenarioId={selectedScenarioId}
@@ -1784,7 +2242,7 @@ function DisasterMap() {
             setMapViewMode={(mode) => {
               setMapViewMode(mode);
               if (mode === '2D' && mapInstanceRef.current) {
-                setTimeout(() => mapInstanceRef.current.invalidateSize(), 150);
+                setTimeout(() => { try { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); } catch (e) {} }, 150);
               }
             }}
             presentationMode={presentationMode}
@@ -1808,67 +2266,6 @@ function DisasterMap() {
           }}
         >
           <div ref={mapContainerRef} style={{ width: '100%', height: '100%', backgroundColor: '#0f172a' }} />
-
-          {/* Floating 2D / 3D Mode Switcher Header */}
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1000,
-            display: 'flex',
-            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-            border: `1.5px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-            borderRadius: '24px',
-            padding: '3px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            backdropFilter: 'blur(8px)'
-          }}>
-            <button
-              onClick={() => {
-                setMapViewMode('2D');
-                if (mapInstanceRef.current) setTimeout(() => mapInstanceRef.current.invalidateSize(), 100);
-              }}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '20px',
-                border: 'none',
-                backgroundColor: '#0284c7',
-                color: '#ffffff',
-                fontSize: '11px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <MapIcon size={13} /> 2D MAP
-            </button>
-            <button
-              onClick={() => {
-                setMapViewMode('3D');
-                if (window.__DRAS_CESIUM_VIEWER__ && !window.__DRAS_CESIUM_VIEWER__.isDestroyed()) {
-                  window.__DRAS_CESIUM_VIEWER__.resize();
-                }
-              }}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '20px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: isDark ? '#94a3b8' : '#64748b',
-                fontSize: '11px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Globe size={13} /> 3D EARTH
-            </button>
-          </div>
         </div>
 
         {/* Dharali 2025 Compact Status Banner */}

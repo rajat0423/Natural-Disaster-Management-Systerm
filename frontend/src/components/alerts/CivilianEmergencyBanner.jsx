@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   AlertTriangle, Volume2, VolumeX, ShieldAlert, LifeBuoy, X,
   ExternalLink, ChevronDown, ChevronUp, BellOff, Radio, Eye, CheckCircle2
@@ -11,6 +12,7 @@ import api from '../../services/api';
  * Features Web Audio API emergency siren oscillator with prominent turn-off controls.
  */
 export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = null }) {
+  const location = useLocation();
   const [alerts, setAlerts] = useState([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
@@ -175,6 +177,10 @@ export default function CivilianEmergencyBanner({ scenarioId = 2, onOpenSos = nu
   };
 
   const currentAlert = alerts[activeIdx] || alerts[0];
+
+  if (location.pathname.includes('/map') || location.pathname.includes('/emergency')) {
+    return null;
+  }
 
   if (!alerts || alerts.length === 0 || !currentAlert) {
     return null;
