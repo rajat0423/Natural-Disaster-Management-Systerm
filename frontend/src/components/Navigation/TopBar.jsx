@@ -14,20 +14,22 @@ import { TYPE, RADIUS, Z, SPACE } from '../../design-system/tokens';
 import {
   Map, LayoutDashboard, FileBarChart, FlaskConical, Cpu,
   Activity, Sun, Moon, RefreshCw, Radio, ChevronRight,
-  LocateFixed,
+  LocateFixed, Truck, LifeBuoy, BellRing
 } from 'lucide-react';
 
 const getNavItems = (scenarioId = 2) => [
-  { to: `/scenario/${scenarioId}/map`,       label: 'Operations', icon: Map },
-  { to: `/scenario/${scenarioId}/dashboard`, label: 'Dashboard',  icon: LayoutDashboard },
-  { to: '/scenarios',                        label: 'Scenarios',  icon: LocateFixed },
-  { to: `/scenario/${scenarioId}/reports`,   label: 'Reports',    icon: FileBarChart },
-  { to: '/research',                         label: 'Research',   icon: FlaskConical },
-  { to: '/model-training',                   label: 'Model V4',   icon: Cpu },
-  { to: '/system',                           label: 'System',     icon: Activity },
+  { to: `/scenario/${scenarioId}/map`,       label: 'Operations',   icon: Map },
+  { to: `/scenario/${scenarioId}/dashboard`, label: 'Dashboard',    icon: LayoutDashboard },
+  { to: `/scenario/${scenarioId}/alerts`,    label: 'Alerts (CAP)', icon: BellRing },
+  { to: `/scenario/${scenarioId}/cad`,       label: 'CAD Dispatch', icon: Truck },
+  { to: '/scenarios',                        label: 'Scenarios',    icon: LocateFixed },
+  { to: `/scenario/${scenarioId}/reports`,   label: 'Reports',      icon: FileBarChart },
+  { to: '/research',                         label: 'Research',     icon: FlaskConical },
+  { to: '/model-training',                   label: 'Model V4',     icon: Cpu },
+  { to: '/system',                           label: 'System',       icon: Activity },
 ];
 
-const TopBar = () => {
+const TopBar = ({ onOpenSos }) => {
   const location = useLocation();
   const { toggleTheme, isDark, tokens } = useTheme();
 
@@ -42,7 +44,7 @@ const TopBar = () => {
       backgroundColor: isDark ? '#0c111d' : '#ffffff',
       borderBottom: `1px solid ${tokens.border}`,
       display: 'flex', alignItems: 'center',
-      padding: `0 ${SPACE[5]}`,
+      padding: `0 ${SPACE[4]}`,
       zIndex: Z.topbar,
       fontFamily: TYPE.fontFamily,
       transition: 'background-color 0.2s ease',
@@ -51,7 +53,7 @@ const TopBar = () => {
       {/* ─── Brand ─── */}
       <NavLink to="/" style={{
         display: 'flex', alignItems: 'center', gap: SPACE[2],
-        textDecoration: 'none', marginRight: SPACE[8], flexShrink: 0,
+        textDecoration: 'none', marginRight: SPACE[6], flexShrink: 0,
       }}>
         <Logo size={26} color={tokens.accent} />
         <span style={{
@@ -71,8 +73,8 @@ const TopBar = () => {
 
       {/* ─── Primary Nav ─── */}
       <nav style={{
-        display: 'flex', alignItems: 'center', gap: '4px',
-        flex: 1, overflow: 'hidden',
+        display: 'flex', alignItems: 'center', gap: '3px',
+        flex: 1, overflowX: 'auto', scrollbarWidth: 'none',
       }}>
         {navItems.map(item => (
           <NavItem key={item.to} {...item} tokens={tokens} isDark={isDark} />
@@ -80,7 +82,28 @@ const TopBar = () => {
       </nav>
 
       {/* ─── Right Side ─── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: SPACE[2], flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SPACE[2], flexShrink: 0, marginLeft: 8 }}>
+        {/* Civilian One-Tap SOS Button */}
+        {onOpenSos && (
+          <button
+            onClick={onOpenSos}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 10px', borderRadius: RADIUS.full,
+              backgroundColor: '#ef4444',
+              color: '#ffffff',
+              border: 'none',
+              fontSize: '11px', fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.35)',
+              letterSpacing: '0.02em'
+            }}
+          >
+            <LifeBuoy size={12} />
+            SOS
+          </button>
+        )}
+
         {/* Active scenario pill */}
         {activeScenario && (
           <div style={{
@@ -89,7 +112,7 @@ const TopBar = () => {
             backgroundColor: tokens.accentSoft,
             border: `1px solid ${isDark ? 'rgba(59,130,246,0.25)' : 'rgba(37,99,235,0.15)'}`,
             fontSize: '12px', fontWeight: 600, color: tokens.accent,
-            maxWidth: 240, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+            maxWidth: 220, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
           }}>
             <Radio size={12} />
             {activeScenario.name}
@@ -106,6 +129,7 @@ const TopBar = () => {
             border: `1px solid ${tokens.border}`,
             backgroundColor: 'transparent', color: tokens.textSec,
             transition: 'all 0.15s ease',
+            cursor: 'pointer'
           }}
         >
           {isDark ? <Sun size={15} /> : <Moon size={15} />}
@@ -121,6 +145,7 @@ const TopBar = () => {
             border: `1px solid ${tokens.border}`,
             backgroundColor: 'transparent', color: tokens.textSec,
             transition: 'all 0.15s ease',
+            cursor: 'pointer'
           }}
         >
           <RefreshCw size={14} />
@@ -137,8 +162,8 @@ function NavItem({ to, label, icon: Icon, tokens, isDark }) {
       to={to}
       style={({ isActive }) => ({
         display: 'flex', alignItems: 'center', gap: '5px',
-        padding: '6px 10px', borderRadius: RADIUS.md,
-        fontSize: '13px', fontWeight: isActive ? 600 : 500,
+        padding: '5px 8px', borderRadius: RADIUS.md,
+        fontSize: '12.5px', fontWeight: isActive ? 600 : 500,
         color: isActive ? tokens.accent : tokens.textSec,
         backgroundColor: isActive ? tokens.accentSoft : 'transparent',
         textDecoration: 'none',
@@ -148,7 +173,7 @@ function NavItem({ to, label, icon: Icon, tokens, isDark }) {
     >
       {({ isActive }) => (
         <>
-          <Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} />
+          <Icon size={14} strokeWidth={isActive ? 2.2 : 1.8} />
           {label}
         </>
       )}

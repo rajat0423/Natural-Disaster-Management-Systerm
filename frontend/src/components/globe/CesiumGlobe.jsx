@@ -8,7 +8,9 @@ import {
   convertFacilitiesTo3DEntities,
   convertHazardsTo3DEntities,
   convertZonesTo3DEntities,
-  convertRouteTo3DEntities
+  convertRouteTo3DEntities,
+  convertAlertsTo3DEntities,
+  convertUnitsTo3DEntities
 } from '../../services/map/cesiumAdapter';
 import { cameraService } from '../../services/map/cameraService';
 import { layerService } from '../../services/map/layerService';
@@ -55,7 +57,9 @@ export default function CesiumGlobe({
     facilities: new Cesium.CustomDataSource('dras-facilities'),
     hazards: new Cesium.CustomDataSource('dras-hazards'),
     zones: new Cesium.CustomDataSource('dras-zones'),
-    routes: new Cesium.CustomDataSource('dras-routes')
+    routes: new Cesium.CustomDataSource('dras-routes'),
+    alerts: new Cesium.CustomDataSource('dras-alerts'),
+    units: new Cesium.CustomDataSource('dras-units')
   });
 
   // Environment States
@@ -431,7 +435,43 @@ export default function CesiumGlobe({
     }
   }, [activeRoute]);
 
-  // 8. Base Map Switching
+  // 8. Render / Update CAP v1.2 Broadcast Polygons in 3D
+  useEffect(() => {
+    const ds = dataSourcesRef.current.alerts;
+    ds.entities.removeAll();
+
+    if (layers.alerts === false) {
+      ds.show = false;
+      return;
+    }
+    ds.show = true;
+
+    const alerts = rawDataRef.current?.alerts?.features || [];
+    const entities = convertAlertsTo3DEntities(alerts);
+    for (const ent of entities) {
+      ds.entities.add(ent);
+    }
+  }, [layers.alerts, selectedScenarioId, dataVersion]);
+
+  // 9. Render / Update CAD Tactical Fleet Telemetry in 3D
+  useEffect(() => {
+    const ds = dataSourcesRef.current.units;
+    ds.entities.removeAll();
+
+    if (layers.units === false) {
+      ds.show = false;
+      return;
+    }
+    ds.show = true;
+
+    const units = rawDataRef.current?.units?.features || [];
+    const entities = convertUnitsTo3DEntities(units);
+    for (const ent of entities) {
+      ds.entities.add(ent);
+    }
+  }, [layers.units, selectedScenarioId, dataVersion]);
+
+  // 10. Base Map Switching
   useEffect(() => {
     if (viewerRef.current) {
       layerService.setBaseMap(viewerRef.current, baseMap);

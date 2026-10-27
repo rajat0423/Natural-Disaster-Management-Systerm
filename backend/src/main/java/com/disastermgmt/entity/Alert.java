@@ -1,0 +1,149 @@
+package com.disastermgmt.entity;
+
+import jakarta.persistence.*;
+import org.locationtech.jts.geom.Geometry;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * OASIS CAP v1.2 Compliant Emergency Alert Entity
+ */
+@Entity
+@Table(name = "alerts")
+public class Alert {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
+
+    @Column(nullable = false, unique = true, length = 100)
+    private String identifier;
+
+    @Column(nullable = false, length = 100)
+    private String sender;
+
+    @Column(name = "sent_at")
+    private LocalDateTime sentAt;
+
+    @Column(nullable = false, length = 20)
+    private String status; // Actual, Exercise, System, Test, Draft
+
+    @Column(name = "msg_type", nullable = false, length = 20)
+    private String msgType; // Alert, Update, Cancel, Ack, Error
+
+    @Column(nullable = false, length = 20)
+    private String scope; // Public, Restricted, Private
+
+    @Column(nullable = false, length = 50)
+    private String category; // Geo, Met, Safety, Security, Rescue, Fire, Health, Env, Transport, Infra
+
+    @Column(nullable = false, length = 100)
+    private String event;
+
+    @Column(nullable = false, length = 20)
+    private String urgency; // Immediate, Expected, Future, Past, Unknown
+
+    @Column(nullable = false, length = 20)
+    private String severity; // Extreme, Severe, Moderate, Minor, Unknown
+
+    @Column(nullable = false, length = 20)
+    private String certainty; // Observed, Likely, Possible, Unlikely, Unknown
+
+    @Column(nullable = false, length = 255)
+    private String headline;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String description;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String instruction;
+
+    @Column(name = "target_zone_id")
+    private Long targetZoneId;
+
+    @Column(columnDefinition = "geometry(Geometry, 4326)")
+    private Geometry geometry;
+
+    @Column(name = "scenario_id")
+    private Long scenarioId;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "expires_at", nullable = false)
+    private LocalDateTime expiresAt;
+
+    public Alert() {}
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
+        if (this.sentAt == null) this.sentAt = LocalDateTime.now();
+        if (this.expiresAt == null) this.expiresAt = LocalDateTime.now().plusHours(12);
+        if (this.status == null) this.status = "Actual";
+        if (this.msgType == null) this.msgType = "Alert";
+        if (this.scope == null) this.scope = "Public";
+    }
+
+    // Getters and Setters
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+
+    public String getIdentifier() { return identifier; }
+    public void setIdentifier(String identifier) { this.identifier = identifier; }
+
+    public String getSender() { return sender; }
+    public void setSender(String sender) { this.sender = sender; }
+
+    public LocalDateTime getSentAt() { return sentAt; }
+    public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    public String getMsgType() { return msgType; }
+    public void setMsgType(String msgType) { this.msgType = msgType; }
+
+    public String getScope() { return scope; }
+    public void setScope(String scope) { this.scope = scope; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public String getEvent() { return event; }
+    public void setEvent(String event) { this.event = event; }
+
+    public String getUrgency() { return urgency; }
+    public void setUrgency(String urgency) { this.urgency = urgency; }
+
+    public String getSeverity() { return severity; }
+    public void setSeverity(String severity) { this.severity = severity; }
+
+    public String getCertainty() { return certainty; }
+    public void setCertainty(String certainty) { this.certainty = certainty; }
+
+    public String getHeadline() { return headline; }
+    public void setHeadline(String headline) { this.headline = headline; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getInstruction() { return instruction; }
+    public void setInstruction(String instruction) { this.instruction = instruction; }
+
+    public Long getTargetZoneId() { return targetZoneId; }
+    public void setTargetZoneId(Long targetZoneId) { this.targetZoneId = targetZoneId; }
+
+    public Geometry getGeometry() { return geometry; }
+    public void setGeometry(Geometry geometry) { this.geometry = geometry; }
+
+    public Long getScenarioId() { return scenarioId; }
+    public void setScenarioId(Long scenarioId) { this.scenarioId = scenarioId; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+}

@@ -626,3 +626,113 @@ export function convertRouteTo3DEntities(activeRoute) {
 
   return entities;
 }
+
+/**
+ * Converts OASIS CAP v1.2 Alerts to 3D Cesium broadcast zone entities.
+ */
+export function convertAlertsTo3DEntities(alerts = []) {
+  const entities = [];
+  for (const alt of alerts) {
+    if (!alt.geometry) continue;
+    const props = alt.properties || {};
+    const coords = getLinearRingCoordinates(alt.geometry);
+    if (!coords || coords.length < 3) continue;
+
+    const flatCoords = [];
+    let sumLon = 0, sumLat = 0;
+    for (const pt of coords) {
+      flatCoords.push(pt[0], pt[1]);
+      sumLon += pt[0];
+      sumLat += pt[1];
+    }
+    const centerLon = sumLon / coords.length;
+    const centerLat = sumLat / coords.length;
+
+    try {
+      const positions = Cesium.Cartesian3.fromDegreesArray(flatCoords);
+      const isExtreme = props.severity === 'Extreme';
+      const color = isExtreme
+        ? Cesium.Color.fromCssColorString('#ef4444').withAlpha(0.25)
+        : Cesium.Color.fromCssColorString('#f97316').withAlpha(0.22);
+      const outlineColor = isExtreme
+        ? Cesium.Color.fromCssColorString('#ef4444')
+        : Cesium.Color.fromCssColorString('#f97316');
+
+      entities.push({
+        id: `cap-alert-${props.id || props.identifier}`,
+        name: `CAP Alert: ${props.event || 'Emergency Warning'}`,
+        polygon: {
+          hierarchy: new Cesium.PolygonHierarchy(positions),
+          material: color,
+          outline: true,
+          outlineColor: outlineColor,
+          outlineWidth: 3.0,
+          height: 10.0,
+          extrudedHeight: 70.0
+        },
+        properties: { ...props, _drasType: 'cap_alert' }
+      });
+
+      // 3D Centroid Warning Badge
+      entities.push({
+        id: `cap-alert-badge-${props.id || props.identifier}`,
+        position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 100),
+        label: {
+          text: `🚨 CAP 1.2 BROADCAST: ${props.event || 'EMERGENCY ALERT'}\n${(props.headline || '').slice(0, 48)}...`,
+          font: 'bold 11px sans-serif',
+          fillColor: Cesium.Color.WHITE,
+          backgroundColor: Cesium.Color.fromCssColorString('rgba(185, 28, 28, 0.95)'),
+          showBackground: true,
+          backgroundPadding: new Cesium.Cartesian2(8, 4),
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to parse alert 3D polygon', e);
+    }
+  }
+  return entities;
+}
+
+/**
+ * Converts Tactical Response Units to 3D Cesium entities.
+ */
+export function convertUnitsTo3DEntities(units = []) {
+  const entities = [];
+  for (const u of units) {
+    if (!u.geometry?.coordinates) continue;
+    const [lon, lat] = u.geometry.coordinates;
+    const p = u.properties || {};
+    const isAvail = p.status === 'AVAILABLE';
+
+    entities.push({
+      id: `unit-${p.id || p.callsign}`,
+      name: `Tactical Unit: ${p.callsign}`,
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, 20),
+      point: {
+        pixelSize: 15,
+        color: isAvail ? Cesium.Color.fromCssColorString('#10b981') : Cesium.Color.fromCssColorString('#3b82f6'),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2.5,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      },
+      label: {
+        text: `🚒 ${p.callsign}\n[${p.status}] ${p.unitType || ''}`,
+        font: 'bold 11px sans-serif',
+        fillColor: Cesium.Color.WHITE,
+        backgroundColor: isAvail
+          ? Cesium.Color.fromCssColorString('rgba(6, 78, 59, 0.92)')
+          : Cesium.Color.fromCssColorString('rgba(30, 58, 138, 0.92)'),
+        showBackground: true,
+        backgroundPadding: new Cesium.Cartesian2(6, 3),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        pixelOffset: new Cesium.Cartesian2(0, -22),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      },
+      properties: { ...p, _drasType: 'unit' }
+    });
+  }
+  return entities;
+}
+

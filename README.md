@@ -1,6 +1,7 @@
 # 🚨 DRAS v2.0 — Disaster Response & Assessment System
 
 [![Architecture: Geospatial AI](https://img.shields.io/badge/Architecture-Geospatial%20AI-0284c7.svg)](#-4-system-architecture--data-flow)
+[![Standards: OASIS CAP v1.2 + FEMA NIMS](https://img.shields.io/badge/Standards-OASIS%20CAP%20v1.2%20%2B%20FEMA%20NIMS-ea580c.svg)](#-11-alert--emergency-response-system-aers--oasis-cap-v12--fema-nims--ics-standards)
 [![Stack: React 19 + Cesium 3D + Spring Boot 3 + FastAPI](https://img.shields.io/badge/Stack-React%2019%20%7C%20Cesium%203D%20%7C%20Spring%20Boot%203%20%7C%20FastAPI-10b981.svg)](#-5-technology-stack)
 [![Spatial DB: PostgreSQL 17 + PostGIS 3.5](https://img.shields.io/badge/Database-PostgreSQL%2017%20%2B%20PostGIS%203.5-6366f1.svg)](#-7-gis-pipeline--postgis-integration)
 [![Verification: 68/68 E2E Tests Passing](https://img.shields.io/badge/Verification-68%2F68%20E2E%20Tests%20Passing-059669.svg)](#-12-automated-verification--test-suite)
@@ -206,7 +207,57 @@ The system features a complete WebGL 3D Globe mode alongside traditional 2D Leaf
 
 ---
 
-## ⚡ 11. Local Setup Instructions
+## 🚨 11. Alert & Emergency Response System (AERS) — OASIS CAP v1.2 & FEMA NIMS / ICS Standards
+
+AIDRS incorporates a production-grade, standards-compliant **Alert and Emergency Response System (AERS)** built to bridge AI-driven damage assessments with civilian early warnings and tactical field dispatches:
+
+### Core Standards Compliance
+- **OASIS CAP v1.2** (Common Alerting Protocol): Compliant XML schema serialization (`urn:oasis:names:tc:emergency:cap:1.2`) with polygonal geospatial targeting (`<polygon>lat,lon lat,lon...</polygon>`), standard urgency, severity, certainty, and headline metadata.
+- **FEMA NIMS / ICS-200 / ICS-300** (Incident Command System): Standardized incident lifecycle states (`REPORTED` $\rightarrow$ `DISPATCHED` $\rightarrow$ `ON_SCENE` $\rightarrow$ `CONTAINED` $\rightarrow$ `CLOSED`) with structured unit allocations.
+- **WMO Early Warning for All (EW4All) & Sendai Framework**: Multi-channel broadcast distribution (Web Audio sirens, RSS/Atom feeds, SMS/Cellular broadcasts).
+
+### System Components & Architecture
+1. **Civilian Emergency Warning Banner & Audio Siren**:
+   - Universal Web Audio API oscillator tone generator (synthesizes standard FEMA emergency alerting sirens via `sawtooth` waves ramping exponentially between $520\text{ Hz}$ and $850\text{ Hz}$ without external audio files).
+   - Real-time polling with CAP 1.2 XML Inspector modal, hazard instructions, and one-tap emergency SOS reporting.
+2. **One-Tap Civilian SOS Request System**:
+   - Captures device HTML5 GPS coordinates, trapped person count, casualty counts, hazard observations, and immediate medical needs.
+   - Instantly submits to `/api/incidents/sos`, creating a priority-ranked CAD incident ticket and auto-dispatching the nearest available tactical response unit.
+3. **Alert Broadcast Command Center (`/alerts`)**:
+   - Multi-hazard composer (Floods, Wildfires, Cyclones, Landslides, Hazmat).
+   - Bilingual/Multilingual templates (English, Hindi, Spanish) for rapid dissemination.
+   - One-click Automated Zone Triggering: Generates standard CAP 1.2 alerts directly from GIS operational damage sectors.
+   - Real-time OASIS CAP 1.2 XML and JSON preview and raw XML download.
+4. **Tactical Computer Aided Dispatch (CAD) Board (`/cad`)**:
+   - 5-Column FEMA ICS Kanban board managing active rescue operations.
+   - 14 Tactical Response Units (USAR Urban Search & Rescue, Medical Evacuation, Structural Firefighting, Garuda Air Evacuation Helicopters, Marine Flood Rescue, and CBRN Hazmat).
+   - Real-time fleet telemetry: Heading, speed, home station, crew size, and readiness toggles (`AVAILABLE`, `DISPATCHED`, `ON_SCENE`, `MAINTENANCE`, `OFF_DUTY`).
+5. **Dual-Engine Geospatial Map Rendering**:
+   - **2D Leaflet**: Animated pulsing CAP broadcast footprint polygons and live responder fleet markers with callsign badges and telemetry popups.
+   - **3D Cesium WebGL**: Extruded semi-transparent warning columns with floating 3D broadcast badges and 3D vehicle markers.
+
+### REST API Endpoints & Feeds
+| Method | Endpoint | Description | Standards Compliance |
+|:--:|---|---|---|
+| `GET` | `/api/alerts` | Query active/all public alerts by scenario | OASIS CAP v1.2 |
+| `GET` | `/api/alerts/{id}/cap.xml` | Raw OASIS CAP v1.2 XML document download | OASIS CAP v1.2 Specification |
+| `GET` | `/api/alerts/{id}/cap.json` | CAP serialized JSON representation | OASIS CAP JSON |
+| `GET` | `/api/alerts/rss` | Public Atom / RSS 2.0 early warning feed | RSS 2.0 / WMO EW4All |
+| `GET` | `/api/alerts/geojson` | Spatial GeoJSON features of alert broadcast footprints | GeoJSON / PostGIS |
+| `POST` | `/api/alerts/auto-generate` | Auto-generate CAP alerts from high-damage sectors | FEMA Incident Automation |
+| `GET` | `/api/incidents` | Query CAD incident tickets by scenario & status | FEMA NIMS / ICS-200 |
+| `GET` | `/api/incidents/geojson` | GeoJSON representation of incident locations | GeoJSON / PostGIS |
+| `POST` | `/api/incidents/sos` | Civilian SOS submission with auto-dispatch | FEMA 911 / CAD Standard |
+| `POST` | `/api/incidents/{id}/dispatch` | Allocate tactical response unit to incident | FEMA Resource Typing |
+| `PUT` | `/api/incidents/{id}/status` | Transition incident lifecycle status | FEMA ICS Lifecycle |
+| `GET` | `/api/units` | Query 14 tactical response units & readiness | FEMA NIMS Resource Management |
+| `GET` | `/api/units/geojson` | Real-time vehicle positions & telemetry GeoJSON | GeoJSON / PostGIS |
+| `PUT` | `/api/units/{id}/status` | Update unit status (`AVAILABLE`, `ON_SCENE`, etc.) | CAD Fleet Telemetry |
+| `PUT` | `/api/units/{id}/location` | Ingest vehicle GPS coordinates, heading & speed | AVL / GPS Telemetry |
+
+---
+
+## ⚡ 12. Local Setup Instructions
 
 ### Prerequisites
 - **Java 17+ / Java 24**
@@ -274,7 +325,7 @@ Open **http://localhost:5173** in your browser. Navigate to **http://localhost:5
 
 ---
 
-## 🧪 12. Automated Verification & Test Suite
+## 🧪 13. Automated Verification & Test Suite
 
 The system includes a comprehensive automated test suite verifying all 4 disaster scenarios, GIS layers, dual routing, explainable priority, research benchmarks, and provenance registries:
 
@@ -304,7 +355,7 @@ python scripts/run_e2e_test.py
 
 ---
 
-## 📁 14. Repository Structure
+## 📁 15. Repository Structure
 
 ```
 Disaster_Management_System/

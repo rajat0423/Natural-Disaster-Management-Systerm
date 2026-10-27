@@ -59,6 +59,8 @@ function DisasterMap() {
     roads: L.layerGroup(),
     hospitals: L.layerGroup(),
     shelters: L.layerGroup(),
+    alerts: L.layerGroup(),
+    units: L.layerGroup(),
     routeGlow: L.layerGroup(),
     route: L.layerGroup(),
     routeMarkers: L.layerGroup(),
@@ -98,6 +100,8 @@ function DisasterMap() {
     roads: true,
     hospitals: true,
     shelters: true,
+    alerts: true,
+    units: true,
     boundary: true
   });
 
@@ -123,6 +127,8 @@ function DisasterMap() {
     shelters: null,
     zones: null,
     hazards: null,
+    alerts: null,
+    units: null,
     scenario: null
   });
 
@@ -195,7 +201,7 @@ function DisasterMap() {
     layerGroupsRef.current.selectionHighlight.clearLayers();
 
     try {
-      const [scenResp, damagesResp, priResp, bldgsResp, roadsResp, hospResp, sheltResp, sumResp, zonesResp, hazardsResp] = await Promise.all([
+      const [scenResp, damagesResp, priResp, bldgsResp, roadsResp, hospResp, sheltResp, sumResp, zonesResp, hazardsResp, alertsResp, unitsResp] = await Promise.all([
         api.get(`/scenarios/${scenarioId}`).catch(() => ({ data: null })),
         api.get(`/map/damages?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
         api.get(`/priorities/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
@@ -205,7 +211,9 @@ function DisasterMap() {
         api.get(`/map/shelters?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
         api.get(`/analysis/${scenarioId}/summary`).catch(() => ({ data: null })),
         api.get(`/map/zones?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
-        api.get(`/map/hazards?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } }))
+        api.get(`/map/hazards?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
+        api.get(`/alerts/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } })),
+        api.get(`/units/geojson?scenarioId=${scenarioId}`).catch(() => ({ data: { features: [] } }))
       ]);
 
       rawDataRef.current = {
@@ -217,7 +225,9 @@ function DisasterMap() {
         hospitals: hospResp.data,
         shelters: sheltResp.data,
         zones: zonesResp.data,
-        hazards: hazardsResp.data
+        hazards: hazardsResp.data,
+        alerts: alertsResp.data,
+        units: unitsResp.data
       };
 
       setSummary(sumResp.data);
@@ -263,7 +273,7 @@ function DisasterMap() {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const { boundary, zones, hazardZones, damages, priorities, buildings, roads, hospitals, shelters } = layerGroupsRef.current;
+    const { boundary, zones, hazardZones, damages, priorities, buildings, roads, hospitals, shelters, alerts, units } = layerGroupsRef.current;
 
     boundary.clearLayers();
     zones.clearLayers();
@@ -274,6 +284,8 @@ function DisasterMap() {
     roads.clearLayers();
     hospitals.clearLayers();
     shelters.clearLayers();
+    if (alerts) alerts.clearLayers();
+    if (units) units.clearLayers();
 
     const bounds = L.latLngBounds();
 
@@ -781,6 +793,94 @@ function DisasterMap() {
       });
       shelters.addLayer(sheltLayer);
       safeExtendBounds(sheltLayer);
+    }
+
+    // H. OASIS CAP v1.2 Public Alert Broadcast Polygons
+    if (layers.alerts && alerts && rawDataRef.current.alerts?.features) {
+      const alertLayer = L.geoJSON(rawDataRef.current.alerts, {
+        style: (feat) => {
+          const isExtreme = feat.properties?.severity === 'Extreme';
+          return {
+            color: isExtreme ? '#ef4444' : '#f97316',
+            weight: 3,
+            dashArray: '5, 5',
+            fillColor: isExtreme ? '#ef4444' : '#f97316',
+            fillOpacity: 0.22
+          };
+        },
+        onEachFeature: (feat, layer) => {
+          const p = feat.properties || {};
+          layer.bindPopup(`
+            <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; max-width: 260px;">
+              <div style="font-size: 11px; font-weight: 800; color: #ef4444; margin-bottom: 4px;">
+                🚨 OASIS CAP 1.2 PUBLIC ALERT
+              </div>
+              <strong style="font-size: 13px; color: #0f172a;">${p.headline || p.event || 'Emergency Warning'}</strong>
+              <div style="margin-top: 4px; font-size: 11px; color: #475569;">
+                <strong>Urgency:</strong> ${p.urgency} · <strong>Severity:</strong> ${p.severity}
+              </div>
+              <div style="margin-top: 6px; font-size: 11px; background: #fef2f2; padding: 6px; border-radius: 4px; border-left: 3px solid #ef4444; color: #991b1b;">
+                <strong>Instruction:</strong> ${p.instruction || 'Follow official emergency guidelines.'}
+              </div>
+            </div>
+          `);
+        }
+      });
+      alerts.addLayer(alertLayer);
+      safeExtendBounds(alertLayer);
+    }
+
+    // I. Tactical First Responder Fleet Units Layer
+    if (layers.units && units && rawDataRef.current.units?.features) {
+      const unitLayer = L.geoJSON(rawDataRef.current.units, {
+        pointToLayer: (feat, latlng) => {
+          const p = feat.properties || {};
+          const isAvail = p.status === 'AVAILABLE';
+          const isDisp = p.status === 'DISPATCHED';
+          const badgeColor = isAvail ? '#10b981' : (isDisp ? '#3b82f6' : '#f97316');
+
+          const icon = L.divIcon({
+            html: `
+              <div style="
+                background: ${badgeColor};
+                color: #ffffff;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 10px;
+                font-weight: 800;
+                border: 2px solid #ffffff;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              ">
+                <span>🚒</span>
+                <span>${p.callsign || 'UNIT'}</span>
+              </div>
+            `,
+            className: 'tactical-unit-marker',
+            iconSize: [90, 22],
+            iconAnchor: [45, 11]
+          });
+          return L.marker(latlng, { icon });
+        },
+        onEachFeature: (feat, layer) => {
+          const p = feat.properties || {};
+          layer.bindPopup(`
+            <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px;">
+              <strong style="color: #0284c7; font-size: 13px;">🚒 ${p.callsign}</strong><br/>
+              Type: <strong>${p.unitType || 'Tactical Unit'}</strong><br/>
+              Status: <span style="font-weight: 700; color: ${p.status === 'AVAILABLE' ? '#10b981' : '#f97316'};">${p.status}</span><br/>
+              Crew: <strong>${p.personnelCount || 4} Responders</strong><br/>
+              Speed: ${p.speedKmh ? `${p.speedKmh} km/h` : 'Stationary'}
+            </div>
+          `);
+        }
+      });
+      units.addLayer(unitLayer);
+      safeExtendBounds(unitLayer);
     }
 
     // If no route is active, fit to overall scenario extent
@@ -1390,6 +1490,34 @@ function DisasterMap() {
               </span>
               <span style={{ fontSize: '9px', fontWeight: 600, color: '#0284c7' }}>
                 {rawDataRef.current.shelters?.features?.length || 0}
+              </span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: tokens.textPrimary }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <input
+                  type="checkbox"
+                  checked={layers.alerts}
+                  onChange={(e) => setLayers({ ...layers, alerts: e.target.checked })}
+                />
+                <span style={{ fontWeight: 600, color: '#ef4444' }}>🚨 CAP Alerts (CAP 1.2)</span>
+              </span>
+              <span style={{ fontSize: '9px', fontWeight: 700, color: '#ef4444' }}>
+                {rawDataRef.current.alerts?.features?.length || 0}
+              </span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: tokens.textPrimary }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <input
+                  type="checkbox"
+                  checked={layers.units}
+                  onChange={(e) => setLayers({ ...layers, units: e.target.checked })}
+                />
+                <span style={{ fontWeight: 600, color: '#10b981' }}>🚒 First Responder Fleet</span>
+              </span>
+              <span style={{ fontSize: '9px', fontWeight: 700, color: '#10b981' }}>
+                {rawDataRef.current.units?.features?.length || 0}
               </span>
             </label>
 
