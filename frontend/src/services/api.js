@@ -19,9 +19,40 @@
 import axios from 'axios';
 
 // The base URL of our Spring Boot backend.
-// In development: http://localhost:8080/api
-// The VITE_API_BASE_URL env variable can override this.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api';
+// Dynamically resolves to current host or Vite proxy for tunnels (e.g. Cloudflare).
+export const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const host = window.location.hostname;
+    // If accessed through a tunnel or public domain, use Vite proxy
+    if (host.includes('trycloudflare.com') || host.includes('loca.lt') || (!host.includes('192.168.') && host !== '127.0.0.1' && host !== 'localhost')) {
+      return '/api';
+    }
+    const configured = import.meta.env.VITE_API_BASE_URL;
+    if (configured) {
+      return configured.replace('127.0.0.1', host).replace('localhost', host);
+    }
+    return `http://${host}:8081/api`;
+  }
+  return 'http://127.0.0.1:8081/api';
+};
+
+export const getAiBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const host = window.location.hostname;
+    // If accessed through a tunnel or public domain, use Vite proxy
+    if (host.includes('trycloudflare.com') || host.includes('loca.lt') || (!host.includes('192.168.') && host !== '127.0.0.1' && host !== 'localhost')) {
+      return '/ai-api';
+    }
+    const configured = import.meta.env.VITE_AI_BASE_URL;
+    if (configured) {
+      return configured.replace('127.0.0.1', host).replace('localhost', host);
+    }
+    return `http://${host}:8000/api`;
+  }
+  return 'http://127.0.0.1:8000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

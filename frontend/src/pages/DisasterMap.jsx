@@ -104,6 +104,7 @@ function DisasterMap() {
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [selectedZone, setSelectedZone] = useState(null);
   const [activeRoute, setActiveRoute] = useState(null);
+  const [isLegendCollapsed, setIsLegendCollapsed] = useState(true);
 
   // Raw GeoJSON Data Cache
   const rawDataRef = useRef({
@@ -342,11 +343,11 @@ function DisasterMap() {
             : (p.description || p.hazard_type || 'Disaster Hazard Corridor');
 
           layer.bindTooltip(`
-            <div style="font-family: -apple-system, sans-serif; font-size: 11px; padding: 2px;">
-              <strong style="color: #b91c1c; font-weight: 800;">⚠️ ${title}</strong><br/>
+            <div style="font-family: Inter, sans-serif; font-size: 11px; padding: 2px;">
+              <strong style="color: #b91c1c; font-weight: 800;">[HAZARD] ${title}</strong><br/>
               <span style="font-size: 10px; color: #475569;">${p.source || 'Satellite Sensor Analysis'}</span>
             </div>
-          `, { sticky: true });
+          `, { sticky: false, direction: 'center', opacity: 0.9 });
 
           layer.bindPopup(`
             <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; min-width: 230px;">
@@ -376,10 +377,11 @@ function DisasterMap() {
           const col = PRIORITY_COLORS[crit] || '#059669';
           return {
             color: isSelected ? '#ffffff' : col,
-            weight: isSelected ? 4 : 2.5,
-            dashArray: crit === 'CRITICAL' ? '4, 4' : null,
+            weight: isSelected ? 3.5 : 2.2,
+            opacity: isSelected ? 1.0 : 0.85,
+            dashArray: null,
             fillColor: col,
-            fillOpacity: isSelected ? 0.38 : 0.20
+            fillOpacity: isSelected ? 0.28 : 0.12
           };
         },
         onEachFeature: (feat, layer) => {
@@ -388,7 +390,7 @@ function DisasterMap() {
           const col = PRIORITY_COLORS[crit] || '#059669';
 
           layer.on({
-            mouseover: (e) => e.target.setStyle({ weight: 4, fillOpacity: 0.40 }),
+            mouseover: (e) => e.target.setStyle({ weight: 4, fillOpacity: 0.28, opacity: 1.0 }),
             mouseout: (e) => {
               if (selectedZone?.id !== p.id) {
                 zoneLayer.resetStyle(e.target);
@@ -396,33 +398,65 @@ function DisasterMap() {
             },
             click: () => {
               setSelectedZone(p);
-              // Focus map on selected zone
+              setSelectedBuilding(null);
               if (layer.getBounds && layer.getBounds().isValid()) {
                 map.fitBounds(layer.getBounds(), { padding: [40, 40] });
-              }
-              // Auto-select apex priority building for this zone
-              if (p.highestPriorityBuildingId) {
-                const bMatch = rawDataRef.current.damages?.features?.find(f => (f.properties?.buildingId || f.properties?.id) === p.highestPriorityBuildingId);
-                const priMatch = rawDataRef.current.priorities?.features?.find(f => (f.properties?.building_id || f.properties?.id) === p.highestPriorityBuildingId);
-                if (bMatch) {
-                  setSelectedBuilding({
-                    ...bMatch.properties,
-                    geometry: bMatch.geometry,
-                    priorityInfo: priMatch?.properties
-                  });
-                }
               }
             }
           });
 
           layer.bindTooltip(`
-            <div style="font-family: -apple-system, sans-serif; font-size: 11px;">
+            <div style="font-family: Inter, sans-serif; font-size: 11px;">
               <strong style="color: ${col}; font-weight: 800;">[${crit}] ${p.zoneCode || ''}</strong><br/>
               <strong>${p.name}</strong><br/>
-              Buildings: <strong>${p.totalBuildings}</strong> (Destroyed: <strong>${p.destroyedCount}</strong>)<br/>
+              Evaluated: <strong>${p.totalBuildings}</strong> | Destroyed: <strong>${p.destroyedCount}</strong><br/>
               Criticality Index: <strong>${((p.criticalityScore || 0) * 100).toFixed(0)}%</strong>
             </div>
-          `, { sticky: true });
+          `, { sticky: false, direction: 'center' });
+
+          // Visible centroid badge marker on map
+          if (layer.getBounds && layer.getBounds().isValid()) {
+            const center = layer.getBounds().getCenter();
+            const displayName = p.name ? p.name.split('—')[0].split('-')[0].trim() : '';
+            const badgeHtml = `
+              <div style="
+                background: ${isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)'};
+                border: 1.5px solid ${col};
+                color: ${isDark ? '#f8fafc' : '#0f172a'};
+                padding: 3px 8px;
+                border-radius: 6px;
+                font-family: Inter, sans-serif;
+                font-size: 11px;
+                font-weight: 700;
+                white-space: nowrap;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                pointer-events: auto;
+              ">
+                <span style="background: ${col}; color: #ffffff; padding: 1px 5px; border-radius: 3px; font-weight: 800; font-size: 10px;">${p.zoneCode || 'ZONE'}</span>
+                <span style="font-weight: 700; color: ${isDark ? '#f1f5f9' : '#1e293b'};">${displayName}</span>
+                <span style="font-size: 10px; color: ${col}; font-weight: 600;">(${p.totalBuildings || 0})</span>
+              </div>
+            `;
+            const icon = L.divIcon({
+              html: badgeHtml,
+              className: 'zone-centroid-badge',
+              iconSize: [140, 30],
+              iconAnchor: [70, 15]
+            });
+            const marker = L.marker(center, { icon, interactive: true });
+            marker.on('click', () => {
+              setSelectedZone(p);
+              setSelectedBuilding(null);
+              if (layer.getBounds && layer.getBounds().isValid()) {
+                map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+              }
+            });
+            zones.addLayer(marker);
+          }
         }
       });
       zones.addLayer(zoneLayer);
@@ -433,11 +467,15 @@ function DisasterMap() {
     const isBuildingVisible = (bldgId) => {
       if (viewLevel === 'BUILDINGS' || viewLevel === 'BOTH') return true;
       if (viewLevel === 'ZONES') {
-        if (!selectedZone) return false;
-        const cIds = selectedZone.constituentBuildingIds || [];
-        return cIds.includes(bldgId);
+        if (!selectedZone) return true;
+        const cIds = Array.isArray(selectedZone.constituentBuildingIds)
+          ? selectedZone.constituentBuildingIds
+          : (Array.isArray(selectedZone.constituent_building_ids)
+            ? selectedZone.constituent_building_ids
+            : []);
+        return cIds.length === 0 || cIds.includes(bldgId);
       }
-      return false;
+      return true;
     };
 
     // Helper: compute centroid point for polygon
@@ -487,22 +525,28 @@ function DisasterMap() {
         pointToLayer: (feat, latlng) => {
           const dClass = feat.properties?.damageClass || 'no-damage';
           const col = DAMAGE_COLORS[dClass] || '#94a3b8';
+          const bId = feat.properties?.buildingId || feat.properties?.id;
+          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
+          const isConstituent = selectedZone && cIds.includes(bId);
           return L.circleMarker(latlng, {
-            radius: 7,
-            color: '#0f172a',
-            weight: 2,
+            radius: isConstituent ? 9 : 7,
+            color: isConstituent ? '#ffffff' : '#0f172a',
+            weight: isConstituent ? 3 : 2,
             fillColor: col,
-            fillOpacity: 0.88
+            fillOpacity: selectedZone ? (isConstituent ? 0.95 : 0.30) : 0.88
           });
         },
         style: (feat) => {
           const dClass = feat.properties?.damageClass || 'no-damage';
           const col = DAMAGE_COLORS[dClass] || '#94a3b8';
+          const bId = feat.properties?.buildingId || feat.properties?.id;
+          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
+          const isConstituent = selectedZone && cIds.includes(bId);
           return {
-            color: '#1e293b',
-            weight: 1.6,
+            color: isConstituent ? '#ffffff' : '#1e293b',
+            weight: isConstituent ? 3 : 1.6,
             fillColor: col,
-            fillOpacity: 0.65 // translucent so satellite imagery is never occluded
+            fillOpacity: selectedZone ? (isConstituent ? 0.90 : 0.25) : 0.65 // translucent so satellite imagery is never occluded
           };
         },
         onEachFeature: (feat, layer) => {
@@ -581,22 +625,28 @@ function DisasterMap() {
         pointToLayer: (feat, latlng) => {
           const lvl = feat.properties?.priority_level || 'LOW';
           const col = PRIORITY_COLORS[lvl] || '#059669';
+          const bId = feat.properties?.building_id || feat.properties?.id;
+          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
+          const isConstituent = selectedZone && cIds.includes(bId);
           return L.circleMarker(latlng, {
-            radius: 8,
-            color: '#0f172a',
-            weight: 2,
+            radius: isConstituent ? 10 : 8,
+            color: isConstituent ? '#ffffff' : '#0f172a',
+            weight: isConstituent ? 3 : 2,
             fillColor: col,
-            fillOpacity: 0.90
+            fillOpacity: selectedZone ? (isConstituent ? 0.98 : 0.30) : 0.90
           });
         },
         style: (feat) => {
           const lvl = feat.properties?.priority_level || 'LOW';
           const col = PRIORITY_COLORS[lvl] || '#059669';
+          const bId = feat.properties?.building_id || feat.properties?.id;
+          const cIds = selectedZone ? (selectedZone.constituentBuildingIds || selectedZone.constituent_building_ids || []) : [];
+          const isConstituent = selectedZone && cIds.includes(bId);
           return {
-            color: '#0f172a',
-            weight: 2,
+            color: isConstituent ? '#ffffff' : '#0f172a',
+            weight: isConstituent ? 3 : 2,
             fillColor: col,
-            fillOpacity: 0.70
+            fillOpacity: selectedZone ? (isConstituent ? 0.92 : 0.25) : 0.70
           };
         },
         onEachFeature: (feat, layer) => {
@@ -1345,131 +1395,192 @@ function DisasterMap() {
           </div>
         )}
 
-        {/* Dynamic Floating Mode & Legend Badge */}
-        <div style={{
-          position: 'absolute',
-          bottom: '16px',
-          left: '16px',
-          backgroundColor: tokens.mapOverlayBg,
-          padding: '10px 14px',
-          borderRadius: '8px',
-          boxShadow: tokens.shadow,
-          zIndex: 1000,
-          fontSize: '10px',
-          border: `1px solid ${tokens.border}`,
-          color: tokens.textPrimary,
-          minWidth: '220px',
-          backdropFilter: 'blur(4px)'
-        }}>
-          <div style={{ fontWeight: 800, marginBottom: '6px', color: tokens.textPrimary, borderBottom: `1px solid ${tokens.border}`, paddingBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-            {mapMode === 'DAMAGE' ? 'DAMAGE ASSESSMENT' : (mapMode === 'PRIORITY' ? 'TRIAGE PRIORITY' : 'RESPONSE & ROUTING')}
+        {/* Collapsible Floating Mode & Legend Badge */}
+        {isLegendCollapsed && (
+          <button
+            onClick={() => setIsLegendCollapsed(false)}
+            title="Expand Map Legend"
+            style={{
+              position: 'absolute',
+              bottom: '16px',
+              left: '16px',
+              backgroundColor: tokens.mapOverlayBg,
+              padding: '7px 12px',
+              borderRadius: '8px',
+              boxShadow: tokens.shadow,
+              zIndex: 1000,
+              fontSize: '11px',
+              fontWeight: 700,
+              border: `1px solid ${tokens.border}`,
+              color: tokens.textPrimary,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backdropFilter: 'blur(6px)'
+            }}
+          >
+            <Layers size={13} color={tokens.accent} />
+            <span>Map Legend</span>
+            <ChevronRight size={13} />
+          </button>
+        )}
+
+        {!isLegendCollapsed && (
+          <div style={{
+            position: 'absolute',
+            bottom: '16px',
+            left: '16px',
+            backgroundColor: tokens.mapOverlayBg,
+            padding: '10px 14px',
+            borderRadius: '8px',
+            boxShadow: tokens.shadow,
+            zIndex: 1000,
+            fontSize: '10px',
+            border: `1px solid ${tokens.border}`,
+            color: tokens.textPrimary,
+            minWidth: '220px',
+            maxWidth: '280px',
+            maxHeight: '260px',
+            overflowY: 'auto',
+            backdropFilter: 'blur(6px)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', borderBottom: `1px solid ${tokens.border}`, paddingBottom: '3px' }}>
+              <div style={{ fontWeight: 800, color: tokens.textPrimary, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Layers size={12} color={tokens.accent} />
+                {mapMode === 'DAMAGE' ? 'DAMAGE ASSESSMENT' : (mapMode === 'PRIORITY' ? 'TRIAGE PRIORITY' : 'RESPONSE & ROUTING')}
+              </div>
+              <button
+                onClick={() => setIsLegendCollapsed(true)}
+                title="Collapse Legend"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  color: tokens.textSecondary,
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+
+            {/* Scenario-Specific Semantic Legend */}
+            {selectedScenarioId === 2 && (
+              <div style={{ marginBottom: '6px', padding: '4px 6px', backgroundColor: isDark ? '#162033' : '#f1f5f9', borderRadius: '4px', fontSize: '9px', color: tokens.textSecondary }}>
+                <strong>CHAMOLI 2021 PROTOCOL:</strong> Native EIDC binary grading (Intact vs Damaged/Obstructed).
+              </div>
+            )}
+
+            {selectedScenarioId === 3 && (
+              <div style={{ marginBottom: '6px', padding: '4px 6px', backgroundColor: isDark ? '#162033' : '#f1f5f9', borderRadius: '4px', fontSize: '9px', color: tokens.textSecondary }}>
+                <strong>CYCLONE FANI PROTOCOL:</strong> Copernicus EMS EMSR357 point grading.
+              </div>
+            )}
+
+            {selectedScenarioId === 4 && (
+              <div style={{ marginBottom: '6px', padding: '4px 6px', backgroundColor: isDark ? '#2a1a1a' : '#fff1f2', borderRadius: '4px', fontSize: '9px', color: '#b91c1c' }}>
+                <strong>DHARALI 2025 PROTOCOL:</strong> Qualitative Zero-Shot. 20.4 ha debris extent.
+              </div>
+            )}
+
+            {mapMode === 'DAMAGE' && (
+              <>
+                {selectedScenarioId === 2 ? (
+                  // Chamoli Binary Legend
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['destroyed'], borderRadius: '2px' }}></span>
+                      <span style={{ fontWeight: 600 }}>Damaged / Obstructed</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['no-damage'], borderRadius: '2px' }}></span>
+                      <span style={{ fontWeight: 600 }}>Intact / Undamaged</span>
+                    </div>
+                  </>
+                ) : selectedScenarioId === 3 ? (
+                  // Fani Point Legend
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['destroyed'], borderRadius: '50%', border: '1px solid #000' }}></span>
+                      <span>Destroyed (EMSR357)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['major-damage'], borderRadius: '50%', border: '1px solid #000' }}></span>
+                      <span>Damaged (EMSR357)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['minor-damage'], borderRadius: '50%', border: '1px solid #000' }}></span>
+                      <span>Possibly damaged</span>
+                    </div>
+                  </>
+                ) : (
+                  // Standard 4-Class Scale
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['no-damage'], borderRadius: '2px' }}></span>
+                      <span>No Damage</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['minor-damage'], borderRadius: '2px' }}></span>
+                      <span>Minor Damage</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['major-damage'], borderRadius: '2px' }}></span>
+                      <span>Major Damage</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['destroyed'], borderRadius: '2px' }}></span>
+                      <span>Destroyed</span>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {mapMode !== 'DAMAGE' && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                  <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['CRITICAL'], borderRadius: '2px' }}></span>
+                  <span style={{ fontWeight: 700, color: PRIORITY_COLORS['CRITICAL'] }}>Critical Priority (≥70%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                  <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['HIGH'], borderRadius: '2px' }}></span>
+                  <span style={{ fontWeight: 600, color: PRIORITY_COLORS['HIGH'] }}>High Priority (50-70%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                  <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['MEDIUM'], borderRadius: '2px' }}></span>
+                  <span>Medium Priority (30-50%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                  <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['LOW'], borderRadius: '2px' }}></span>
+                  <span>Low Priority (&lt;30%)</span>
+                </div>
+              </>
+            )}
+
+            <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: '5px', color: tokens.textSecondary, fontSize: '10px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: 12, height: 0, borderTop: '2px dashed #dc2626' }} />
+                <span><strong style={{ color: '#dc2626' }}>Red Dashed:</strong> Hazard / Debris Extent</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: 12, height: 0, borderTop: '2px dashed #7c3aed' }} />
+                <span><strong style={{ color: '#7c3aed' }}>Violet Dashed:</strong> Blocked road corridor</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: 12, height: 3, backgroundColor: '#d97706', borderRadius: 1 }} />
+                <span><strong style={{ color: '#d97706' }}>Amber Glow:</strong> Response Access Route</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: 12, height: 3, backgroundColor: '#0284c7', borderRadius: 1 }} />
+                <span><strong style={{ color: '#0284c7' }}>Cyan Glow:</strong> Evacuation Route</span>
+              </div>
+            </div>
           </div>
-
-          {/* Scenario-Specific Semantic Legend */}
-          {selectedScenarioId === 2 && (
-            <div style={{ marginBottom: '6px', padding: '4px 6px', backgroundColor: isDark ? '#162033' : '#f1f5f9', borderRadius: '4px', fontSize: '9px', color: tokens.textSecondary }}>
-              <strong>CHAMOLI 2021 PROTOCOL:</strong> Native binary grading (Intact vs Damaged/Obstructed) from EIDC field survey.
-            </div>
-          )}
-
-          {selectedScenarioId === 3 && (
-            <div style={{ marginBottom: '6px', padding: '4px 6px', backgroundColor: isDark ? '#162033' : '#f1f5f9', borderRadius: '4px', fontSize: '9px', color: tokens.textSecondary }}>
-              <strong>CYCLONE FANI PROTOCOL:</strong> Point-based damage grading (EMSR357 / OSDMA). Not cadastral building polygons.
-            </div>
-          )}
-
-          {selectedScenarioId === 4 && (
-            <div style={{ marginBottom: '6px', padding: '4px 6px', backgroundColor: isDark ? '#2a1a1a' : '#fff1f2', borderRadius: '4px', fontSize: '9px', color: '#b91c1c' }}>
-              <strong>DHARALI 2025 PROTOCOL:</strong> Qualitative Zero-Shot. Debris extent polygon (20.4 ha) with inferred footprints.
-            </div>
-          )}
-
-          {mapMode === 'DAMAGE' && (
-            <>
-              {selectedScenarioId === 2 ? (
-                // Chamoli Binary Legend
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['destroyed'], borderRadius: '2px' }}></span>
-                    <span style={{ fontWeight: 600 }}>Damaged / Obstructed</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['no-damage'], borderRadius: '2px' }}></span>
-                    <span style={{ fontWeight: 600 }}>Intact / Undamaged</span>
-                  </div>
-                </>
-              ) : selectedScenarioId === 3 ? (
-                // Fani Point Legend
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['destroyed'], borderRadius: '50%', border: '1px solid #000' }}></span>
-                    <span>Destroyed (Grade 4)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['major-damage'], borderRadius: '50%', border: '1px solid #000' }}></span>
-                    <span>Major Damage (Grade 3)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['minor-damage'], borderRadius: '50%', border: '1px solid #000' }}></span>
-                    <span>Minor Damage (Grade 2)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '8px', height: '8px', backgroundColor: DAMAGE_COLORS['no-damage'], borderRadius: '50%', border: '1px solid #000' }}></span>
-                    <span>Negligible / Intact (Grade 1)</span>
-                  </div>
-                </>
-              ) : (
-                // Standard 4-Class Scale
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['no-damage'], borderRadius: '2px' }}></span>
-                    <span>No Damage</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['minor-damage'], borderRadius: '2px' }}></span>
-                    <span>Minor Damage</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['major-damage'], borderRadius: '2px' }}></span>
-                    <span>Major Damage</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                    <span style={{ width: '10px', height: '10px', backgroundColor: DAMAGE_COLORS['destroyed'], borderRadius: '2px' }}></span>
-                    <span>Destroyed</span>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {mapMode !== 'DAMAGE' && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['CRITICAL'], borderRadius: '2px' }}></span>
-                <span style={{ fontWeight: 700, color: PRIORITY_COLORS['CRITICAL'] }}>Critical Priority (≥70%)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['HIGH'], borderRadius: '2px' }}></span>
-                <span style={{ fontWeight: 600, color: PRIORITY_COLORS['HIGH'] }}>High Priority (50-70%)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['MEDIUM'], borderRadius: '2px' }}></span>
-                <span>Medium Priority (30-50%)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: PRIORITY_COLORS['LOW'], borderRadius: '2px' }}></span>
-                <span>Low Priority (&lt;30%)</span>
-              </div>
-            </>
-          )}
-
-          <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: '4px', color: tokens.textSecondary, fontSize: '9px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <div>⚠️ <strong style={{ color: '#dc2626' }}>Red Dashed:</strong> Hazard / Debris Extent</div>
-            <div>⛔ <strong style={{ color: '#7c3aed' }}>Violet Dashed:</strong> Blocked road corridor</div>
-            <div>🟠 <strong style={{ color: '#d97706' }}>Amber Glow:</strong> Response Access Route</div>
-            <div>🔵 <strong style={{ color: '#0284c7' }}>Cyan Glow:</strong> Evacuation Route</div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ============================================================ */}
@@ -1508,11 +1619,15 @@ function DisasterMap() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
               <div>
-                <span style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase' }}>
-                  {selectedScenarioId === 3 ? 'POINT OBSERVATION' : 'SELECTED STRUCTURE'}
+                <span style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {selectedScenarioId === 3 || selectedBuilding.geometry?.type === 'Point' 
+                    ? 'COPERNICUS EMSR357 POINT OBSERVATION' 
+                    : (selectedScenarioId === 4 ? 'QUALITATIVE ZERO-SHOT REFERENCE' : 'SELECTED STRUCTURE FOOTPRINT')}
                 </span>
                 <h3 style={{ fontSize: '15px', fontWeight: 800, color: tokens.textPrimary, margin: 0 }}>
-                  Structure #{selectedBuilding.id || selectedBuilding.buildingId}
+                  {selectedScenarioId === 3 || selectedBuilding.geometry?.type === 'Point'
+                    ? `Observation Point #${selectedBuilding.id || selectedBuilding.buildingId}`
+                    : `Structure #${selectedBuilding.id || selectedBuilding.buildingId}`}
                 </h3>
                 <span style={{ fontSize: '10px', color: tokens.textSecondary }}>
                   Scenario: <strong>{scenarios.find(s => s.id === selectedScenarioId)?.name || `Scenario ${selectedScenarioId}`}</strong>
@@ -1542,6 +1657,93 @@ function DisasterMap() {
               </span>
             </div>
 
+            {/* AI SATELLITE EVIDENCE (BEFORE / AFTER COMPARISON OR SENSOR CONTEXT) */}
+            <div style={{ backgroundColor: tokens.bgTertiary, padding: '8px', borderRadius: '6px', border: `1px solid ${tokens.border}`, marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: tokens.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Satellite size={12} color={tokens.accent} /> AI SATELLITE EVIDENCE
+                </span>
+                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', backgroundColor: '#38bdf820', color: '#0284c7', fontWeight: 700 }}>
+                  {selectedScenarioId === 1 ? 'Bi-Temporal Optical Chips (xBD)' : (selectedScenarioId === 3 ? 'Copernicus EMS Rapid Mapping' : (selectedScenarioId === 2 ? 'EIDC Orthomosaic Sensor' : 'Cartosat-2S / PlanetScope'))}
+                </span>
+              </div>
+
+              {selectedScenarioId === 1 ? (
+                /* Dual Before / After Frames for xBD Benchmark */
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+                  <div style={{ border: `1px solid ${tokens.border}`, borderRadius: '4px', overflow: 'hidden', backgroundColor: '#020617' }}>
+                    <div style={{ padding: '2px 5px', backgroundColor: '#0284c7', color: '#fff', fontSize: '10px', fontWeight: 800, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>PRE-DISASTER</span>
+                      <span>Reference</span>
+                    </div>
+                    <div style={{ height: '88px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img
+                        src={`/satellite_evidence/crops/scen1_${selectedBuilding.damageClass || 'no-damage'}_pre.png`}
+                        alt="Pre-disaster satellite crop"
+                        onError={(e) => { e.target.src = '/satellite_evidence/scenario_1_pre.png'; }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ border: `1px solid ${tokens.border}`, borderRadius: '4px', overflow: 'hidden', backgroundColor: '#020617' }}>
+                    <div style={{ padding: '2px 5px', backgroundColor: DAMAGE_COLORS[selectedBuilding.damageClass] || '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 800, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>POST-DISASTER</span>
+                      <span>Impact</span>
+                    </div>
+                    <div style={{ height: '88px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img
+                        src={`/satellite_evidence/crops/scen1_${selectedBuilding.damageClass || 'no-damage'}_post.png`}
+                        alt="Post-disaster satellite crop"
+                        onError={(e) => { e.target.src = '/satellite_evidence/scenario_1_post.png'; }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Honest Regional Sensor Context without fake identical chips */
+                <div style={{ border: `1px solid ${tokens.border}`, borderRadius: '4px', overflow: 'hidden', backgroundColor: '#020617', marginBottom: '6px' }}>
+                  <div style={{ padding: '3px 6px', backgroundColor: isDark ? '#1e293b' : '#334155', color: '#fff', fontSize: '10px', fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>SENSOR SCENE CONTEXT</span>
+                    <span style={{ fontSize: '9px', opacity: 0.85 }}>
+                      {selectedScenarioId === 3 ? 'Copernicus AOI08 Puri' : (selectedScenarioId === 2 ? 'EIDC Rishiganga Scour' : 'Cartosat-2S Debris Fan')}
+                    </span>
+                  </div>
+                  <div style={{ height: '96px', overflow: 'hidden', position: 'relative' }}>
+                    <img
+                      src={`/satellite_evidence/scenario_${selectedScenarioId}_post.png`}
+                      alt="Sensor scene context"
+                      onError={(e) => { e.target.src = `/satellite_evidence/scenario_${selectedScenarioId}_pre.png`; }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <div style={{ position: 'absolute', bottom: '4px', right: '6px', background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '1px 5px', borderRadius: '3px', fontSize: '9px' }}>
+                      {selectedScenarioId === 3 ? 'EMSR357 High-Res Photo-Interpretation' : (selectedScenarioId === 2 ? 'EIDC Westoby Orthomosaic' : 'Zero-Shot Hazard Extent')}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: '10px', color: tokens.textSecondary, lineHeight: 1.35, backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.04)', padding: '5px 7px', borderRadius: '4px' }}>
+                <strong style={{ color: tokens.textPrimary }}>Detection Rationale: </strong>
+                {selectedBuilding.priorityInfo?.explanation || (
+                  selectedScenarioId === 3
+                    ? `Copernicus EMS EMSR357 rapid mapping point grade: ${(selectedBuilding.damageClass || 'Damaged').toUpperCase()}. Photo-interpreted satellite assessment across coastal Puri.`
+                    : selectedScenarioId === 2
+                      ? `EIDC Westoby et al. (2023) survey condition: ${(selectedBuilding.damageClass === 'no-damage' ? 'Intact Structure' : 'Damaged / Obstructed')}. Post-flood avalanche scour corridor.`
+                      : selectedScenarioId === 4
+                        ? `Qualitative Zero-Shot Protocol: Building exposure derived relative to 20.4 ha Kheer Ganga debris fan. No verified ground truth labels exist.`
+                        : (selectedBuilding.damageClass === 'destroyed'
+                            ? 'Structural collapse detected. Complete obliteration of roof plane and dispersed rubble scatter.'
+                            : selectedBuilding.damageClass === 'major-damage'
+                              ? 'Major structural trauma. Severe roof shearing and foundation breach detected via high-res spectral delta.'
+                              : selectedBuilding.damageClass === 'minor-damage'
+                                ? 'Minor exterior shingle displacement and perimeter flooding/smoke staining; frame intact.'
+                                : 'Structure intact. Clean geometric roof boundaries and no detectable physical disruption.')
+                )}
+              </div>
+            </div>
+
             {/* Damage Assessment */}
             <div style={{ backgroundColor: tokens.bgTertiary, padding: '8px', borderRadius: '6px', border: `1px solid ${tokens.border}`, marginBottom: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -1567,15 +1769,19 @@ function DisasterMap() {
               </div>
 
               {/* Exposure and Access Status */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', borderTop: `1px solid ${tokens.border}`, paddingTop: '5px', fontSize: '9px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', borderTop: `1px solid ${tokens.border}`, paddingTop: '5px', fontSize: '10px' }}>
                 <div>
                   <span style={{ color: tokens.textSecondary }}>Estimated Exposure:</span>
-                  <strong style={{ display: 'block', color: tokens.textPrimary }}>~5-8 occupants</strong>
+                  <strong style={{ display: 'block', color: tokens.textPrimary }}>
+                    {selectedScenarioId === 3 
+                      ? 'Unspecified (Point Observation)' 
+                      : (selectedScenarioId === 4 ? 'Unverified (Zero-Shot Exposure)' : '~4-8 occupants (cadastral footprint)')}
+                  </strong>
                 </div>
                 <div>
                   <span style={{ color: tokens.textSecondary }}>Road Accessibility:</span>
                   <strong style={{ display: 'block', color: avoidBlockedRoads ? '#10b981' : '#f59e0b' }}>
-                    {avoidBlockedRoads ? 'Detour Clear' : 'Direct Corridor'}
+                    {avoidBlockedRoads ? 'Detour Route Clear' : 'Direct Corridor'}
                   </strong>
                 </div>
               </div>
@@ -1833,12 +2039,12 @@ function DisasterMap() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
               <div style={{ padding: '6px 8px', backgroundColor: tokens.bgTertiary, borderRadius: '4px', border: `1px solid ${tokens.border}` }}>
                 <span style={{ fontSize: '9px', color: tokens.textSecondary, display: 'block' }}>Total Evaluated</span>
-                <strong style={{ fontSize: '12px', color: tokens.textPrimary }}>{selectedZone.totalBuildings} Buildings</strong>
+                <strong style={{ fontSize: '12px', color: tokens.textPrimary }}>{selectedZone.totalBuildings} {selectedScenarioId === 3 ? 'Observations' : 'Buildings'}</strong>
               </div>
               <div style={{ padding: '6px 8px', backgroundColor: isDark ? '#2a1a1a' : '#fef2f2', borderRadius: '4px', border: `1px solid ${isDark ? '#7f1d1d' : '#fee2e2'}` }}>
                 <span style={{ fontSize: '9px', color: isDark ? '#fca5a5' : '#991b1b', display: 'block' }}>Severe Impact</span>
                 <strong style={{ fontSize: '12px', color: '#dc2626' }}>
-                  {(selectedZone.destroyedCount || 0) + (selectedZone.majorDamageCount || 0)} Structures
+                  {(selectedZone.destroyedCount || 0) + (selectedZone.majorDamageCount || 0)} {selectedScenarioId === 3 ? 'Points' : 'Structures'}
                 </strong>
               </div>
               <div style={{ padding: '6px 8px', backgroundColor: isDark ? '#162438' : '#f0f9ff', borderRadius: '4px', border: `1px solid ${isDark ? '#1e3a8a' : '#e0f2fe'}` }}>
@@ -1941,46 +2147,56 @@ function DisasterMap() {
             </div>
 
             {/* Constituent Buildings Drill-down */}
-            {selectedZone.constituentBuildingIds && selectedZone.constituentBuildingIds.length > 0 && (
-              <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: '8px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', marginBottom: '4px' }}>
-                  Constituent Structures ({selectedZone.constituentBuildingIds.length})
+            {(() => {
+              const cIds = Array.isArray(selectedZone.constituentBuildingIds)
+                ? selectedZone.constituentBuildingIds
+                : (Array.isArray(selectedZone.constituent_building_ids)
+                  ? selectedZone.constituent_building_ids
+                  : (typeof selectedZone.constituentBuildingIds === 'string'
+                    ? JSON.parse(selectedZone.constituentBuildingIds || '[]')
+                    : []));
+              if (!cIds || cIds.length === 0) return null;
+              return (
+                <div style={{ borderTop: `1px solid ${tokens.border}`, paddingTop: '8px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textSecondary, textTransform: 'uppercase', marginBottom: '4px' }}>
+                    Constituent {selectedScenarioId === 3 ? 'Observations' : 'Structures'} ({cIds.length})
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                    {cIds.map(bId => {
+                      const bMatch = rawDataRef.current.damages?.features?.find(f => (f.properties?.buildingId || f.properties?.id) === bId);
+                      const dClass = bMatch?.properties?.damageClass || 'no-damage';
+                      return (
+                        <button
+                          key={bId}
+                          onClick={() => {
+                            const priMatch = rawDataRef.current.priorities?.features?.find(f => (f.properties?.building_id || f.properties?.id) === bId);
+                            if (bMatch) {
+                              setSelectedBuilding({
+                                ...bMatch.properties,
+                                geometry: bMatch.geometry,
+                                priorityInfo: priMatch?.properties
+                              });
+                            }
+                          }}
+                          style={{
+                            padding: '2px 5px',
+                            fontSize: '9px',
+                            fontWeight: 700,
+                            borderRadius: '3px',
+                            border: `1px solid ${DAMAGE_COLORS[dClass] || tokens.border}`,
+                            backgroundColor: DAMAGE_COLORS[dClass] ? `${DAMAGE_COLORS[dClass]}22` : tokens.bgTertiary,
+                            color: tokens.textPrimary,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          #{bId}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
-                  {selectedZone.constituentBuildingIds.map(bId => {
-                    const bMatch = rawDataRef.current.damages?.features?.find(f => (f.properties?.buildingId || f.properties?.id) === bId);
-                    const dClass = bMatch?.properties?.damageClass || 'no-damage';
-                    return (
-                      <button
-                        key={bId}
-                        onClick={() => {
-                          const priMatch = rawDataRef.current.priorities?.features?.find(f => (f.properties?.building_id || f.properties?.id) === bId);
-                          if (bMatch) {
-                            setSelectedBuilding({
-                              ...bMatch.properties,
-                              geometry: bMatch.geometry,
-                              priorityInfo: priMatch?.properties
-                            });
-                          }
-                        }}
-                        style={{
-                          padding: '2px 5px',
-                          fontSize: '9px',
-                          fontWeight: 700,
-                          borderRadius: '3px',
-                          border: `1px solid ${DAMAGE_COLORS[dClass] || tokens.border}`,
-                          backgroundColor: DAMAGE_COLORS[dClass] ? `${DAMAGE_COLORS[dClass]}22` : tokens.bgTertiary,
-                          color: tokens.textPrimary,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        #{bId}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         ) : (
           /* Default Incident Snapshot & Operational Zones List */

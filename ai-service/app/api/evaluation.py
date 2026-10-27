@@ -80,6 +80,26 @@ MODEL_REGISTRY = {
         "num_classes": 2,
         "weights_file": os.path.join("models", "india_v2", "best_model.pth"),
         "status": "available"
+    },
+    "dras_india_v3": {
+        "id": "dras_india_v3",
+        "name": "DRAS India Model V3 (Multimodal Optical+SAR & U-Net++)",
+        "architecture": "Two-Stage Architecture: Stage 1 U-Net++ EfficientNet-B2 (84.6% IoU) + Stage 2 Multimodal Optical-SAR (78.1% Macro F1, 86.8% Weighted F1)",
+        "training_data": "Global (xBD + BRIGHT) + 12 Indian Disaster Events (54,478 catalogued structures)",
+        "parameters": 21_864_951,
+        "input_mode": "multimodal_pre_post",
+        "num_classes": 4,
+        "weights_file": os.path.join("models", "india_v3", "stage1", "best_model.pt"),
+        "status": "available",
+        "model_version": "dras-india-v3",
+        "dataset_version": "india-disaster-v3.1",
+        "benchmarks": {
+            "building_iou": 0.846,
+            "dice": 0.908,
+            "macro_f1": 0.781,
+            "weighted_f1": 0.868,
+            "destroyed_f1": 0.812
+        }
     }
 }
 
@@ -191,3 +211,66 @@ def get_cross_event():
         "status": "not_run",
         "note": "Cross-event experiment requires trained India model."
     }
+
+
+# ============================================================
+# DRAS Model V3 Dedicated Endpoints
+# ============================================================
+
+@router.get("/evaluation/v3/benchmarks")
+def get_v3_benchmarks():
+    """Returns empirical Stage 1 and Stage 2 architectural benchmark metrics."""
+    s1 = _load_json("stage1_benchmark.json") or {}
+    s2 = _load_json("stage2_benchmark.json") or {}
+    return {
+        "framework": "DRAS India Model V3 Architecture Benchmarking",
+        "stage1_localisation": s1,
+        "stage2_damage_assessment": s2
+    }
+
+
+@router.get("/evaluation/v3/ablations")
+def get_v3_ablations():
+    """Returns the 10-experiment controlled ablation study findings."""
+    abl = _load_json("ablation_results.json")
+    if not abl:
+        raise HTTPException(404, "Ablation results have not been generated yet.")
+    return abl
+
+
+@router.get("/evaluation/v3/cross-event")
+def get_v3_cross_event_matrix():
+    """Returns the strict leave-one-event-out cross-event generalisation matrix."""
+    matrix = _load_json("cross_event_matrix.json")
+    if not matrix:
+        raise HTTPException(404, "Cross-event matrix has not been generated yet.")
+    return matrix
+
+
+@router.get("/evaluation/v3/active-learning")
+def get_v3_active_learning():
+    """Returns the active learning uncertainty sampling queue."""
+    al_path = os.path.join(ROOT_DIR, "outputs", "active_learning", "smoke_test_uncertainty_queue.json")
+    if os.path.exists(al_path):
+        with open(al_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"status": "EMPTY", "review_queue": []}
+
+
+@router.get("/evaluation/v3/quality-control")
+def get_v3_quality_control():
+    """Returns the 10-check scientific integrity and quality control report."""
+    qc = _load_json("quality_control_report.json")
+    if not qc:
+        raise HTTPException(404, "Quality control report not found.")
+    return qc
+
+
+@router.get("/evaluation/v3/error-analysis")
+def get_v3_error_analysis():
+    """Returns the model error taxonomy and failure mode breakdown."""
+    err = _load_json("error_analysis.json")
+    if not err:
+        raise HTTPException(404, "Error analysis report not found.")
+    return err
+

@@ -52,27 +52,38 @@ def health_check():
 @router.get("/model/info")
 def model_info():
     """
-    Report what AI capabilities are available.
+    Report what AI capabilities and checkpoints are available across all model directories.
     """
     import os
-    models_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
+    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ai_models_dir = os.path.join(app_dir, '..', 'models')
+    root_models_dir = os.path.join(app_dir, '..', '..', 'models')
+
     available_weights = []
-    if os.path.exists(models_dir):
-        for f in os.listdir(models_dir):
-            if f.endswith('.pth'):
-                fpath = os.path.join(models_dir, f)
-                available_weights.append({
-                    "filename": f,
-                    "size_mb": round(os.path.getsize(fpath) / 1e6, 1)
-                })
+    for m_dir in [ai_models_dir, root_models_dir]:
+        if os.path.exists(m_dir):
+            for root, _, files in os.walk(m_dir):
+                for f in files:
+                    if f.endswith(('.pth', '.pt')):
+                        fpath = os.path.join(root, f)
+                        rel = os.path.relpath(fpath, os.path.dirname(root_models_dir))
+                        available_weights.append({
+                            "filename": f,
+                            "relative_path": rel.replace('\\', '/'),
+                            "size_mb": round(os.path.getsize(fpath) / 1e6, 1)
+                        })
 
     return {
         "model_loaded": len(available_weights) > 0,
-        "model_name": "U-Net ResNet34 (xBD Baseline)",
-        "model_version": "v1.0-xbd-baseline",
-        "architecture": "segmentation_models_pytorch U-Net + ResNet34 encoder",
-        "parameters": 24_446_357,
-        "num_classes": 5,
+        "active_production_model": "dras_india_v3 (Two-Stage Decoupled U-Net++ & Siamese ResNet50)",
+        "model_version": "v3.0-decoupled-india",
+        "supported_architectures": [
+            "DRAS India v3: U-Net++ (EfficientNet-B2) + Siamese ResNet50",
+            "DRAS India v2: Class-Weighted U-Net ResNet34",
+            "DRAS India v1: Fine-Tuned U-Net ResNet34",
+            "Baseline: U-Net ResNet34 (xBD Baseline)"
+        ],
+        "total_checkpoints_detected": len(available_weights),
         "available_weights": available_weights,
         "pytorch_version": torch.__version__,
         "device": "cuda" if torch.cuda.is_available() else "cpu",

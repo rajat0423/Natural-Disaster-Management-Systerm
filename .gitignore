@@ -134,3 +134,14 @@ outputs/india_evaluation/*
 !outputs/india_evaluation/*.json
 outputs/training_logs/
 outputs/evaluation_results_india*.json
+
+# === Executables, Large Tunnels & Temporary Media ===
+*.exe
+cloudflared*
+outputs/*.jpg
+outputs/videos/
+outputs/voiceover*/
+outputs/*.mp3
+outputs/temp_*
+data/global/
+

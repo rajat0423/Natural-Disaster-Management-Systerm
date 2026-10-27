@@ -24,6 +24,7 @@ from sklearn.cluster import KMeans
 import psycopg2
 from shapely import wkt
 from shapely.geometry import shape, mapping, Polygon, MultiPolygon, Point, MultiPoint
+from shapely.ops import unary_union
 
 DB_PARAMS = {
     "dbname": "disaster_db",
@@ -142,21 +143,17 @@ class OperationalZoneGenerator:
                 avg_pri = float(np.mean([b["priority_score"] for b in cluster_bldgs]))
                 highest_pri_bldg = max(cluster_bldgs, key=lambda b: b["priority_score"])
 
-                # Spatial perimeter: Convex hull of building points + buffer
-                pts = [Point(b["lon"], b["lat"]) for b in cluster_bldgs]
-                if len(pts) >= 3:
-                    hull = MultiPoint(pts).convex_hull
-                    # Buffer by ~200m in degrees (0.002 deg)
-                    zone_poly = hull.buffer(0.0022).simplify(0.0003)
-                elif len(pts) == 2:
-                    zone_poly = MultiPoint(pts).buffer(0.0025).simplify(0.0003)
+                # Spatial perimeter: Organic buffered union of building footprints / locations
+                geoms = [b["geometry"] for b in cluster_bldgs if b.get("geometry") is not None]
+                if not geoms:
+                    geoms = [Point(b["lon"], b["lat"]).buffer(0.0008) for b in cluster_bldgs]
                 else:
-                    zone_poly = pts[0].buffer(0.0025).simplify(0.0003)
+                    geoms = [g.buffer(0.0010) for g in geoms]
 
+                u = unary_union(geoms)
+                zone_poly = u.buffer(0.0004).buffer(-0.0003).simplify(0.0001, preserve_topology=True)
                 if zone_poly.geom_type == "MultiPolygon":
                     zone_poly = max(zone_poly.geoms, key=lambda g: g.area)
-                if zone_poly.geom_type != "Polygon":
-                    zone_poly = zone_poly.convex_hull
 
                 # Count intersecting GIS infrastructure
                 hosp_cnt = 0
@@ -212,7 +209,7 @@ class OperationalZoneGenerator:
                     recom = "Support and logistics staging area. Triage center and evacuation assembly point."
 
                 sector_name = scenario_sector_titles[cluster_idx % len(scenario_sector_titles)]
-                zone_code = f"ZONE-SCEN{scenario_id:02d}-{cluster_idx+1:02d}"
+                zone_code = f"Z-{cluster_idx+1:02d}"
 
                 explanation = (
                     f"Zone designated as {criticality} priority (Criticality Index: {crit_score:.2f}). "

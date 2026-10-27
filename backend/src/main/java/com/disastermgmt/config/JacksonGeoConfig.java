@@ -38,7 +38,11 @@ public class JacksonGeoConfig {
             }
             GeoJsonReader reader = new GeoJsonReader();
             try {
-                return (T) reader.read(node.toString());
+                Geometry geom = reader.read(node.toString());
+                if (geom != null) {
+                    geom.setSRID(4326);
+                }
+                return (T) geom;
             } catch (Exception e) {
                 throw new IOException("Failed to parse GeoJSON geometry: " + e.getMessage(), e);
             }

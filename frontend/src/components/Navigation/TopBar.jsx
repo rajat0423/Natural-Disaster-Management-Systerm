@@ -1,143 +1,159 @@
+/**
+ * ============================================================
+ * AIDRS — TopBar (Redesigned)
+ * ============================================================
+ * Professional command-center navigation bar.
+ * Uses Lucide icons, Inter font, and design tokens.
+ */
 import React from 'react';
-import { NavLink, useLocation, useParams } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { BRANDING } from '../../config/branding';
 import { useTheme } from '../../context/ThemeContext';
+import Logo from '../brand/Logo';
+import { TYPE, RADIUS, Z, SPACE } from '../../design-system/tokens';
+import {
+  Map, LayoutDashboard, FileBarChart, FlaskConical, Cpu,
+  Activity, Sun, Moon, RefreshCw, Radio, ChevronRight,
+  LocateFixed,
+} from 'lucide-react';
+
+const getNavItems = (scenarioId = 2) => [
+  { to: `/scenario/${scenarioId}/map`,       label: 'Operations', icon: Map },
+  { to: `/scenario/${scenarioId}/dashboard`, label: 'Dashboard',  icon: LayoutDashboard },
+  { to: '/scenarios',                        label: 'Scenarios',  icon: LocateFixed },
+  { to: `/scenario/${scenarioId}/reports`,   label: 'Reports',    icon: FileBarChart },
+  { to: '/research',                         label: 'Research',   icon: FlaskConical },
+  { to: '/model-training',                   label: 'Model V4',   icon: Cpu },
+  { to: '/system',                           label: 'System',     icon: Activity },
+];
 
 const TopBar = () => {
   const location = useLocation();
-  const { scenarioId } = useParams();
-  const { theme, toggleTheme, isDark, tokens } = useTheme();
+  const { toggleTheme, isDark, tokens } = useTheme();
 
-  // If we are in a scenario, determine the active scenario name
-  const match = location.pathname.match(/\/scenario\/(\d+)/);
-  const activeScenarioId = match ? parseInt(match[1]) : null;
-  
-  const activeScenario = BRANDING.scenarios.find(s => s.id === activeScenarioId);
-
-  const handleRefresh = () => {
-    window.location.reload();
-  };
-
-  const barStyle = {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '56px',
-    backgroundColor: isDark ? '#0f172a' : '#ffffff',
-    color: tokens.textPrimary,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 20px',
-    boxShadow: isDark ? '0 2px 4px rgba(0,0,0,0.3)' : '0 2px 6px rgba(0,0,0,0.08)',
-    borderBottom: `1px solid ${tokens.border}`,
-    zIndex: 2000,
-    fontFamily: 'sans-serif',
-    transition: 'background-color 0.2s, color 0.2s, border-color 0.2s'
-  };
-
-  const logoStyle = {
-    fontWeight: 'bold',
-    fontSize: '1.25rem',
-    color: tokens.accent,
-    textDecoration: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  };
-
-  const navContainerStyle = {
-    display: 'flex',
-    gap: '12px',
-    alignItems: 'center'
-  };
-
-  const getLinkStyle = ({ isActive }) => ({
-    color: isActive ? tokens.accent : tokens.textSecondary,
-    backgroundColor: isActive ? tokens.accentSubtle : 'transparent',
-    textDecoration: 'none',
-    fontWeight: isActive ? '700' : '500',
-    padding: '6px 12px',
-    borderRadius: '6px',
-    fontSize: '0.9rem',
-    transition: 'all 0.15s ease',
-  });
-
-  const rightSideStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px'
-  };
-
-  const badgeStyle = {
-    backgroundColor: tokens.bgTertiary,
-    padding: '4px 10px',
-    borderRadius: '12px',
-    fontSize: '0.82rem',
-    color: tokens.textSecondary,
-    border: `1px solid ${tokens.border}`,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px'
-  };
-
-  const btnStyle = {
-    background: tokens.bgTertiary,
-    border: `1px solid ${tokens.border}`,
-    color: tokens.textPrimary,
-    padding: '5px 10px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.82rem',
-    fontWeight: '600',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-    transition: 'all 0.15s ease'
-  };
+  const match = location.pathname.match(/(?:\/scenario\/|\/map\/)(\d+)/);
+  const activeScenarioId = match ? parseInt(match[1]) : 2;
+  const activeScenario = BRANDING.scenarios.find(s => s.id === activeScenarioId) || BRANDING.scenarios[1];
+  const navItems = getNavItems(activeScenarioId);
 
   return (
-    <div style={barStyle}>
-      <NavLink to="/" style={logoStyle}>
-        <span style={{ fontSize: '1.5rem' }}>🚨</span> {BRANDING.productName}
+    <header style={{
+      position: 'fixed', top: 0, left: 0, right: 0, height: 52,
+      backgroundColor: isDark ? '#0c111d' : '#ffffff',
+      borderBottom: `1px solid ${tokens.border}`,
+      display: 'flex', alignItems: 'center',
+      padding: `0 ${SPACE[5]}`,
+      zIndex: Z.topbar,
+      fontFamily: TYPE.fontFamily,
+      transition: 'background-color 0.2s ease',
+    }}>
+
+      {/* ─── Brand ─── */}
+      <NavLink to="/" style={{
+        display: 'flex', alignItems: 'center', gap: SPACE[2],
+        textDecoration: 'none', marginRight: SPACE[8], flexShrink: 0,
+      }}>
+        <Logo size={26} color={tokens.accent} />
+        <span style={{
+          fontSize: '16px', fontWeight: 700, color: tokens.text,
+          letterSpacing: '-0.02em',
+        }}>
+          AIDRS
+        </span>
+        <span style={{
+          fontSize: '11px', fontWeight: 500, color: tokens.textMuted,
+          letterSpacing: '0.02em', marginLeft: '-2px',
+          display: window.innerWidth < 900 ? 'none' : 'inline',
+        }}>
+          v2.0
+        </span>
       </NavLink>
 
-      <div style={navContainerStyle}>
-        <NavLink to="/scenarios" style={getLinkStyle}>Scenarios</NavLink>
-        {activeScenarioId && (
-          <>
-            <NavLink to={`/scenario/${activeScenarioId}/dashboard`} style={getLinkStyle}>Dashboard</NavLink>
-            <NavLink to={`/scenario/${activeScenarioId}/map`} style={getLinkStyle}>Operations Map</NavLink>
-            <NavLink to={`/scenario/${activeScenarioId}/reports`} style={getLinkStyle}>Reports</NavLink>
-          </>
-        )}
-        <NavLink to="/research" style={getLinkStyle}>Research</NavLink>
-      </div>
+      {/* ─── Primary Nav ─── */}
+      <nav style={{
+        display: 'flex', alignItems: 'center', gap: '4px',
+        flex: 1, overflow: 'hidden',
+      }}>
+        {navItems.map(item => (
+          <NavItem key={item.to} {...item} tokens={tokens} isDark={isDark} />
+        ))}
+      </nav>
 
-      <div style={rightSideStyle}>
+      {/* ─── Right Side ─── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: SPACE[2], flexShrink: 0 }}>
+        {/* Active scenario pill */}
         {activeScenario && (
-          <div style={badgeStyle}>
-            <span>Active:</span> <strong style={{ color: tokens.textPrimary }}>{activeScenario.name}</strong>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '4px 10px', borderRadius: RADIUS.full,
+            backgroundColor: tokens.accentSoft,
+            border: `1px solid ${isDark ? 'rgba(59,130,246,0.25)' : 'rgba(37,99,235,0.15)'}`,
+            fontSize: '12px', fontWeight: 600, color: tokens.accent,
+            maxWidth: 240, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+          }}>
+            <Radio size={12} />
+            {activeScenario.name}
           </div>
         )}
-        
-        {/* Theme Toggle Button */}
+
+        {/* Theme Toggle */}
         <button
-          style={btnStyle}
           onClick={toggleTheme}
-          title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
-          aria-label="Toggle Theme"
+          aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: RADIUS.md,
+            border: `1px solid ${tokens.border}`,
+            backgroundColor: 'transparent', color: tokens.textSec,
+            transition: 'all 0.15s ease',
+          }}
         >
-          {isDark ? '☀ Light' : '🌙 Dark'}
+          {isDark ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
-        <button style={btnStyle} onClick={handleRefresh} title="Refresh Data">
-          🔄 Refresh
+        {/* Refresh */}
+        <button
+          onClick={() => window.location.reload()}
+          aria-label="Refresh data"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: RADIUS.md,
+            border: `1px solid ${tokens.border}`,
+            backgroundColor: 'transparent', color: tokens.textSec,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <RefreshCw size={14} />
         </button>
       </div>
-    </div>
+    </header>
   );
 };
+
+/* ─── Individual Nav Item ─── */
+function NavItem({ to, label, icon: Icon, tokens, isDark }) {
+  return (
+    <NavLink
+      to={to}
+      style={({ isActive }) => ({
+        display: 'flex', alignItems: 'center', gap: '5px',
+        padding: '6px 10px', borderRadius: RADIUS.md,
+        fontSize: '13px', fontWeight: isActive ? 600 : 500,
+        color: isActive ? tokens.accent : tokens.textSec,
+        backgroundColor: isActive ? tokens.accentSoft : 'transparent',
+        textDecoration: 'none',
+        transition: 'all 0.12s ease',
+        whiteSpace: 'nowrap',
+      })}
+    >
+      {({ isActive }) => (
+        <>
+          <Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} />
+          {label}
+        </>
+      )}
+    </NavLink>
+  );
+}
 
 export default TopBar;

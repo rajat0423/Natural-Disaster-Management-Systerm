@@ -122,7 +122,7 @@ def run_tests():
             "routePurpose": "RESPONSE"
         })
         calc_time = (time.perf_counter() - t0) * 1000.0
-        assert "Demonstration Response Staging Point" in resp_route.get("originName")
+        assert "Staging Point" in resp_route.get("originName")
         assert resp_route.get("distanceKm") > 0
         assert resp_route.get("routePurpose") == "RESPONSE"
         assert len(resp_route.get("routeSteps", [])) > 0

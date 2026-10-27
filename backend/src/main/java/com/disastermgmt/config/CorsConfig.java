@@ -32,11 +32,8 @@ public class CorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Allow requests from our React dev server
-        config.setAllowedOrigins(List.of(
-                "http://localhost:5173",   // Vite dev server
-                "http://localhost:3000"    // Alternative port
-        ));
+        // Allow all origins (including localhost, LAN IPs, and Cloudflare tunnels)
+        config.setAllowedOriginPatterns(List.of("*"));
 
         // Allow all standard HTTP methods
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));

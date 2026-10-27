@@ -197,6 +197,12 @@ public class MapLayerService {
             props.put("name", z.getName());
             props.put("criticality", z.getCriticality());
             props.put("criticalityScore", z.getCriticalityScore());
+            String crit = z.getCriticality();
+            String col = "#10b981";
+            if ("CRITICAL".equalsIgnoreCase(crit)) col = "#ef4444";
+            else if ("HIGH".equalsIgnoreCase(crit)) col = "#f97316";
+            else if ("MEDIUM".equalsIgnoreCase(crit) || "MODERATE".equalsIgnoreCase(crit)) col = "#eab308";
+            props.put("color", col);
             props.put("totalBuildings", z.getTotalBuildings());
             props.put("destroyedCount", z.getDestroyedCount());
             props.put("majorDamageCount", z.getMajorDamageCount());

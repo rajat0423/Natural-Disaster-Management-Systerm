@@ -51,7 +51,7 @@ public class DisasterScenario {
     private String state;
     private String district;
 
-    @Column(columnDefinition = "varchar(100) default 'India'")
+    @Column(name = "country", length = 100)
     private String country = "India";
 
     @Column(name = "disaster_subtype")

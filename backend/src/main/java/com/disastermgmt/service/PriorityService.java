@@ -48,12 +48,15 @@ public class PriorityService {
             props.put("infrastructure_score", p.getInfrastructureScore());
             props.put("accessibilityScore", p.getAccessibilityScore());
             props.put("accessibility_score", p.getAccessibilityScore());
+            props.put("hazardProximityScore", p.getHazardProximityScore() != null ? p.getHazardProximityScore() : 0.0);
+            props.put("hazard_proximity_score", p.getHazardProximityScore() != null ? p.getHazardProximityScore() : 0.0);
             props.put("explanation", p.getExplanation());
             props.put("weights", Map.of(
                     "severity", p.getWeightSeverity() != null ? p.getWeightSeverity() : 0.40,
                     "population", p.getWeightPopulation() != null ? p.getWeightPopulation() : 0.25,
                     "infrastructure", p.getWeightInfrastructure() != null ? p.getWeightInfrastructure() : 0.20,
-                    "accessibility", p.getWeightAccessibility() != null ? p.getWeightAccessibility() : 0.15
+                    "accessibility", p.getWeightAccessibility() != null ? p.getWeightAccessibility() : 0.15,
+                    "hazardProximity", p.getWeightHazardProximity() != null ? p.getWeightHazardProximity() : 0.10
             ));
 
             return new GeoJsonFeature(p.getId(), p.getGeometry(), props);

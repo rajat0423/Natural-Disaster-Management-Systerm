@@ -1,32 +1,31 @@
-/**
- * ============================================================
- * ExecutiveDashboard.jsx — Comprehensive Spatial Disaster Summary
- * ============================================================
- */
-
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { BRANDING } from '../config/branding';
-import api from '../services/api';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  Building2, 
+  AlertTriangle, 
+  AlertCircle, 
+  Hospital, 
+  Home, 
+  Construction,
+  MapPin,
+  Calendar,
+  Shield
+} from 'lucide-react';
+
 import { useTheme } from '../context/ThemeContext';
-
-const DAMAGE_COLORS = {
-  'no-damage': '#10b981',
-  'minor-damage': '#f59e0b',
-  'major-damage': '#f97316',
-  'destroyed': '#ef4444'
-};
-
-const PRIORITY_COLORS = {
-  'CRITICAL': '#dc2626',
-  'HIGH': '#ea580c',
-  'MEDIUM': '#d97706',
-  'LOW': '#059669'
-};
+import MetricCard from '../components/common/MetricCard';
+import Card, { CardHeader, CardTitle } from '../components/common/Card';
+import StatusBadge from '../components/common/StatusBadge';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import { DAMAGE_COLORS, PRIORITY_COLORS, TYPE, RADIUS, SPACE } from '../design-system/tokens';
+import api from '../services/api';
+import { BRANDING } from '../config/branding';
 
 function ExecutiveDashboard() {
   const { scenarioId: urlScenarioId } = useParams();
+  const navigate = useNavigate();
   const { tokens, isDark } = useTheme();
+  
   const [scenarios, setScenarios] = useState([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState(urlScenarioId ? parseInt(urlScenarioId) : 1);
   const [scenarioData, setScenarioData] = useState(null);
@@ -35,6 +34,7 @@ function ExecutiveDashboard() {
   const [shelters, setShelters] = useState([]);
   const [roads, setRoads] = useState([]);
   const [priorities, setPriorities] = useState([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -47,10 +47,10 @@ function ExecutiveDashboard() {
       const resp = await api.get('/scenarios');
       setScenarios(resp.data);
       if (resp.data.length > 0) {
-        setSelectedScenarioId(resp.data[0].id);
+        setSelectedScenarioId(urlScenarioId ? parseInt(urlScenarioId) : resp.data[0].id);
       }
     } catch (err) {
-      setError('Could not connect to Spring Boot backend (port 8081).');
+      setError('Could not connect to backend.');
       setLoading(false);
     }
   }
@@ -87,39 +87,74 @@ function ExecutiveDashboard() {
     }
   }
 
-  const criticalCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'CRITICAL').length || 2;
-  const highCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'HIGH').length || 61;
-  const mediumCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'MEDIUM').length || 66;
-  const lowCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'LOW').length || 52;
-  const blockedRoadCount = roads.filter(r => r.properties?.isBlocked).length || 4;
+  // Derived metrics
+  const criticalCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'CRITICAL').length;
+  const highCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'HIGH').length;
+  const mediumCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'MEDIUM').length;
+  const lowCount = priorities.filter(p => (p.priorityLevel || p.priority_level) === 'LOW').length;
+  
+  const totalBeds = hospitals.reduce((acc, h) => acc + (parseInt(h.properties?.capacity) || 0), 0);
+  const totalShelterCapacity = shelters.reduce((acc, s) => acc + (parseInt(s.properties?.capacity) || 0), 0);
+  const blockedRoadCount = roads.filter(r => r.properties?.isBlocked).length;
+  const totalRoads = roads.length;
+
+  const scenarioBadge = BRANDING.scenarios?.find(s => s.id === selectedScenarioId)?.badge || 'Operational Event';
+
+  const getStatusColor = (status) => {
+    if (!status) return tokens.success;
+    const s = status.toLowerCase();
+    if (s === 'operational') return tokens.success;
+    if (s === 'at capacity') return tokens.warning;
+    if (s === 'closed' || s === 'damaged') return tokens.error;
+    return tokens.textSecondary;
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
+        <LoadingSpinner size="large" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '1200px', margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: tokens.textPrimary }}>
+    <div style={{ padding: `${SPACE.xl} ${SPACE.xl}`, maxWidth: '1200px', margin: '0 auto', fontFamily: TYPE.fontFamily, color: tokens.textPrimary }}>
       
       {/* Header & Scenario Selector */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `1px solid ${tokens.border}`, paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACE.xl, borderBottom: `1px solid ${tokens.border}`, paddingBottom: SPACE.lg }}>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 800, color: tokens.textPrimary, margin: '0 0 2px 0' }}>
-            Executive Disaster Situation Summary
-          </h1>
-          <span style={{ fontSize: '12px', color: tokens.textSecondary }}>
-            Aggregate Damage Distribution, Priority Triage Analysis, and Infrastructure Inventory
+          <div style={{ display: 'flex', alignItems: 'center', gap: SPACE.md, marginBottom: SPACE.xs }}>
+            <h1 style={{ fontSize: '24px', fontWeight: 800, color: tokens.textPrimary, margin: 0 }}>
+              {scenarioData?.name || 'Executive Situation Summary'}
+            </h1>
+            <StatusBadge status="info" label={scenarioBadge} />
+          </div>
+          <span style={{ fontSize: '14px', color: tokens.textSecondary, display: 'block', maxWidth: '800px' }}>
+            {scenarioData?.description || 'Aggregate Damage Distribution, Priority Triage Analysis, and Infrastructure Inventory'}
           </span>
+          {scenarioData && (
+            <div style={{ display: 'flex', gap: SPACE.lg, marginTop: SPACE.md, fontSize: '12px', color: tokens.textSecondary }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: SPACE.xs }}><Shield size={14} /> {scenarioData.disasterType}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: SPACE.xs }}><Calendar size={14} /> {scenarioData.eventDate}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: SPACE.xs }}><MapPin size={14} /> {scenarioData.locationName}</span>
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '11px', fontWeight: 600, color: tokens.textSecondary }}>Scenario:</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SPACE.sm }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: tokens.textSecondary }}>Scenario:</label>
           <select
             value={selectedScenarioId}
             onChange={(e) => setSelectedScenarioId(Number(e.target.value))}
             style={{
-              padding: '6px 10px',
-              borderRadius: '4px',
+              padding: `${SPACE.xs} ${SPACE.sm}`,
+              borderRadius: RADIUS.md,
               border: `1px solid ${tokens.inputBorder}`,
-              fontSize: '11px',
-              fontWeight: 600,
+              fontSize: '12px',
+              fontWeight: 500,
               color: tokens.textPrimary,
-              backgroundColor: tokens.inputBg
+              backgroundColor: tokens.inputBg,
+              cursor: 'pointer'
             }}
           >
             {scenarios.map(s => (
@@ -130,234 +165,192 @@ function ExecutiveDashboard() {
       </div>
 
       {error && (
-        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '10px 14px', borderRadius: '6px', marginBottom: '20px', fontSize: '12px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: SPACE.md, borderRadius: RADIUS.md, marginBottom: SPACE.lg, fontSize: '14px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
           {error}
         </div>
       )}
 
-      {/* Scenario Information Card */}
-      {scenarioData && (
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '8px', padding: '16px', marginBottom: '20px', boxShadow: tokens.shadow }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <h2 style={{ fontSize: '15px', fontWeight: 700, color: tokens.textPrimary, margin: '0 0 4px 0' }}>
-                {scenarioData.name}
-              </h2>
-              <p style={{ fontSize: '11px', color: tokens.textSecondary, margin: '0 0 8px 0', maxWidth: '800px' }}>
-                {scenarioData.description}
-              </p>
-              <div style={{ display: 'flex', gap: '16px', fontSize: '11px', color: tokens.textMuted }}>
-                <span><strong>Hazard:</strong> {scenarioData.disasterType}</span>
-                <span><strong>Date:</strong> {scenarioData.eventDate}</span>
-                <span><strong>Location:</strong> {scenarioData.locationName}</span>
-                <span><strong>Imagery:</strong> {scenarioData.dataSource}</span>
-              </div>
-            </div>
-            <span style={{ backgroundColor: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid rgba(56, 189, 248, 0.3)' }}>
-              {BRANDING.SCENARIO_BADGE}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Key Metric KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: tokens.textMuted, textTransform: 'uppercase', marginBottom: '2px' }}>Assessed Structures</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: tokens.textPrimary }}>{summary?.totalBuildings || 181}</div>
-          <div style={{ fontSize: '10px', color: tokens.textMuted, marginTop: '2px' }}>100% vector polygonized</div>
-        </div>
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', marginBottom: '2px' }}>Critical Priority</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626' }}>{criticalCount}</div>
-          <div style={{ fontSize: '10px', color: tokens.textMuted, marginTop: '2px' }}>Score &ge; 70%</div>
-        </div>
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', marginBottom: '2px' }}>High Priority</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c' }}>{highCount}</div>
-          <div style={{ fontSize: '10px', color: tokens.textMuted, marginTop: '2px' }}>Score 50-70%</div>
-        </div>
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', marginBottom: '2px' }}>Operational Hospitals</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#059669' }}>{hospitals.length || 7}</div>
-          <div style={{ fontSize: '10px', color: tokens.textMuted, marginTop: '2px' }}>730 total beds</div>
-        </div>
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase', marginBottom: '2px' }}>Relief Shelters</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#0284c7' }}>{shelters.length || 6}</div>
-          <div style={{ fontSize: '10px', color: tokens.textMuted, marginTop: '2px' }}>3,850 evacuee capacity</div>
-        </div>
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '6px', padding: '14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '2px' }}>Blocked Corridors</div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: '#7c3aed' }}>{blockedRoadCount}</div>
-          <div style={{ fontSize: '10px', color: tokens.textMuted, marginTop: '2px' }}>4 of 8 corridors obstructed</div>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: SPACE.md, marginBottom: SPACE.xl }}>
+        <MetricCard
+          title="Assessed Structures"
+          value={summary?.totalBuildings || 0}
+          subtitle="Vector polygonized"
+          icon={Building2}
+          iconColor={tokens.textSecondary}
+        />
+        <MetricCard
+          title="Critical Priority"
+          value={criticalCount}
+          subtitle="Score &ge; 70%"
+          icon={AlertTriangle}
+          iconColor={PRIORITY_COLORS?.CRITICAL || '#dc2626'}
+        />
+        <MetricCard
+          title="High Priority"
+          value={highCount}
+          subtitle="Score 50-70%"
+          icon={AlertCircle}
+          iconColor={PRIORITY_COLORS?.HIGH || '#ea580c'}
+        />
+        <MetricCard
+          title="Operational Hospitals"
+          value={hospitals.length}
+          subtitle={`${totalBeds} total beds`}
+          icon={Hospital}
+          iconColor={tokens.success || '#059669'}
+        />
+        <MetricCard
+          title="Relief Shelters"
+          value={shelters.length}
+          subtitle={`${totalShelterCapacity} evacuee capacity`}
+          icon={Home}
+          iconColor={tokens.info || '#0369a1'}
+        />
+        <MetricCard
+          title="Blocked Corridors"
+          value={blockedRoadCount}
+          subtitle={`${blockedRoadCount} of ${totalRoads} corridors obstructed`}
+          icon={Construction}
+          iconColor={'#7c3aed'}
+        />
       </div>
 
       {/* Two-Column Analytics Section */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SPACE.lg, marginBottom: SPACE.xl }}>
         
         {/* Left Card: Damage Breakdown */}
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '8px', padding: '16px', boxShadow: tokens.shadow }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: 700, color: tokens.textPrimary, margin: 0 }}>
-              Damage Severity Breakdown
-            </h3>
-            <span style={{ fontSize: '10px', color: tokens.textMuted }}>Two-Stage CV Pipeline</span>
+        <Card style={{ backgroundColor: tokens.surface, borderRadius: RADIUS.lg }}>
+          <CardHeader>
+            <CardTitle style={{ fontSize: '16px', fontWeight: 600 }}>Damage Severity Breakdown</CardTitle>
+          </CardHeader>
+          <div style={{ padding: SPACE.lg, display: 'flex', flexDirection: 'column', gap: SPACE.md }}>
+            {[
+              { label: 'No Damage', key: 'noDamageCount', color: DAMAGE_COLORS?.['no-damage'] || '#10b981' },
+              { label: 'Minor Damage', key: 'minorDamageCount', color: DAMAGE_COLORS?.['minor-damage'] || '#f59e0b' },
+              { label: 'Major Damage', key: 'majorDamageCount', color: DAMAGE_COLORS?.['major-damage'] || '#f97316' },
+              { label: 'Destroyed', key: 'destroyedCount', color: DAMAGE_COLORS?.['destroyed'] || '#ef4444' }
+            ].map((item, idx) => {
+              const val = summary?.[item.key] || 0;
+              const total = summary?.totalBuildings || 1;
+              const pct = ((val / total) * 100).toFixed(1);
+              return (
+                <div key={idx}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: SPACE.xs, fontSize: '12px' }}>
+                    <span style={{ fontWeight: 600, color: item.color }}>{item.label}</span>
+                    <strong style={{ color: tokens.textPrimary }}>{val} ({pct}%)</strong>
+                  </div>
+                  <div style={{ height: '6px', backgroundColor: tokens.bgTertiary || 'rgba(0,0,0,0.05)', borderRadius: RADIUS.sm, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', backgroundColor: item.color, borderRadius: RADIUS.sm }}></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: DAMAGE_COLORS['no-damage'] }}>No Damage</span>
-                <strong>{summary?.noDamageCount || 106} ({(((summary?.noDamageCount || 106) / (summary?.totalBuildings || 181)) * 100).toFixed(1)}%)</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(((summary?.noDamageCount || 106) / (summary?.totalBuildings || 181)) * 100)}%`, height: '100%', backgroundColor: DAMAGE_COLORS['no-damage'] }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: DAMAGE_COLORS['minor-damage'] }}>Minor Damage</span>
-                <strong>{summary?.minorDamageCount || 41} ({(((summary?.minorDamageCount || 41) / (summary?.totalBuildings || 181)) * 100).toFixed(1)}%)</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(((summary?.minorDamageCount || 41) / (summary?.totalBuildings || 181)) * 100)}%`, height: '100%', backgroundColor: DAMAGE_COLORS['minor-damage'] }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: DAMAGE_COLORS['major-damage'] }}>Major Damage</span>
-                <strong>{summary?.majorDamageCount || 24} ({(((summary?.majorDamageCount || 24) / (summary?.totalBuildings || 181)) * 100).toFixed(1)}%)</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(((summary?.majorDamageCount || 24) / (summary?.totalBuildings || 181)) * 100)}%`, height: '100%', backgroundColor: DAMAGE_COLORS['major-damage'] }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: DAMAGE_COLORS['destroyed'] }}>Destroyed</span>
-                <strong>{summary?.destroyedCount || 10} ({(((summary?.destroyedCount || 10) / (summary?.totalBuildings || 181)) * 100).toFixed(1)}%)</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(((summary?.destroyedCount || 10) / (summary?.totalBuildings || 181)) * 100)}%`, height: '100%', backgroundColor: DAMAGE_COLORS['destroyed'] }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </Card>
 
         {/* Right Card: Priority Breakdown */}
-        <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '8px', padding: '16px', boxShadow: tokens.shadow }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: 700, color: tokens.textPrimary, margin: 0 }}>
-              Priority Urgency Breakdown
-            </h3>
-            <span style={{ fontSize: '10px', color: tokens.textMuted }}>4-Factor Triage Model</span>
+        <Card style={{ backgroundColor: tokens.surface, borderRadius: RADIUS.lg }}>
+          <CardHeader>
+            <CardTitle style={{ fontSize: '16px', fontWeight: 600 }}>Priority Urgency Breakdown</CardTitle>
+          </CardHeader>
+          <div style={{ padding: SPACE.lg, display: 'flex', flexDirection: 'column', gap: SPACE.md }}>
+            {[
+              { label: 'Critical Priority', val: criticalCount, color: PRIORITY_COLORS?.CRITICAL || '#dc2626' },
+              { label: 'High Priority', val: highCount, color: PRIORITY_COLORS?.HIGH || '#ea580c' },
+              { label: 'Medium Priority', val: mediumCount, color: PRIORITY_COLORS?.MEDIUM || '#d97706' },
+              { label: 'Low Priority', val: lowCount, color: PRIORITY_COLORS?.LOW || '#059669' }
+            ].map((item, idx) => {
+              const total = summary?.totalBuildings || 1;
+              const pct = ((item.val / total) * 100).toFixed(1);
+              return (
+                <div key={idx}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: SPACE.xs, fontSize: '12px' }}>
+                    <span style={{ fontWeight: 600, color: item.color }}>{item.label}</span>
+                    <strong style={{ color: tokens.textPrimary }}>{item.val} locations</strong>
+                  </div>
+                  <div style={{ height: '6px', backgroundColor: tokens.bgTertiary || 'rgba(0,0,0,0.05)', borderRadius: RADIUS.sm, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', backgroundColor: item.color, borderRadius: RADIUS.sm }}></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 700, color: PRIORITY_COLORS['CRITICAL'] }}>Critical Priority</span>
-                <strong style={{ color: tokens.textPrimary }}>{criticalCount} locations</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(criticalCount / (summary?.totalBuildings || 181)) * 100}%`, height: '100%', backgroundColor: PRIORITY_COLORS['CRITICAL'] }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: PRIORITY_COLORS['HIGH'] }}>High Priority</span>
-                <strong style={{ color: tokens.textPrimary }}>{highCount} locations</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(highCount / (summary?.totalBuildings || 181)) * 100}%`, height: '100%', backgroundColor: PRIORITY_COLORS['HIGH'] }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: PRIORITY_COLORS['MEDIUM'] }}>Medium Priority</span>
-                <strong style={{ color: tokens.textPrimary }}>{mediumCount} locations</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(mediumCount / (summary?.totalBuildings || 181)) * 100}%`, height: '100%', backgroundColor: PRIORITY_COLORS['MEDIUM'] }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <span style={{ fontWeight: 600, color: PRIORITY_COLORS['LOW'] }}>Low Priority</span>
-                <strong style={{ color: tokens.textPrimary }}>{lowCount} locations</strong>
-              </div>
-              <div style={{ height: '6px', backgroundColor: tokens.bgTertiary, borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(lowCount / (summary?.totalBuildings || 181)) * 100}%`, height: '100%', backgroundColor: PRIORITY_COLORS['LOW'] }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </Card>
 
       </div>
 
       {/* Facilities Inventory */}
-      <div style={{ backgroundColor: tokens.bgCard, border: `1px solid ${tokens.border}`, borderRadius: '8px', padding: '16px', marginBottom: '20px', boxShadow: tokens.shadow }}>
-        <h3 style={{ fontSize: '13px', fontWeight: 700, color: tokens.textPrimary, margin: '0 0 12px 0' }}>
-          Emergency Response & Evacuation Facilities
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <Card style={{ backgroundColor: tokens.surface, borderRadius: RADIUS.lg }}>
+        <CardHeader>
+          <CardTitle style={{ fontSize: '16px', fontWeight: 600 }}>Emergency Response & Evacuation Facilities</CardTitle>
+        </CardHeader>
+        <div style={{ padding: SPACE.lg, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SPACE.xl }}>
           
           {/* Hospitals Table */}
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', marginBottom: '6px' }}>Emergency Medical Centers:</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
-              <thead>
-                <tr style={{ backgroundColor: tokens.bgTertiary, borderBottom: `1px solid ${tokens.border}`, textAlign: 'left', color: tokens.textSecondary }}>
-                  <th style={{ padding: '6px 8px' }}>Facility</th>
-                  <th style={{ padding: '6px 8px' }}>Capacity</th>
-                  <th style={{ padding: '6px 8px' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hospitals.map((h, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${tokens.border}` }}>
-                    <td style={{ padding: '6px 8px', fontWeight: 600, color: tokens.textPrimary }}>{h.properties?.name}</td>
-                    <td style={{ padding: '6px 8px', color: tokens.textSecondary }}>{h.properties?.capacity} beds</td>
-                    <td style={{ padding: '6px 8px', color: '#16a34a', fontWeight: 600 }}>Operational</td>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: PRIORITY_COLORS?.CRITICAL || '#dc2626', marginBottom: SPACE.sm }}>Emergency Medical Centers</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: tokens.tableHeader, borderBottom: `1px solid ${tokens.border}`, textAlign: 'left', color: tokens.textSecondary }}>
+                    <th style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500 }}>Facility</th>
+                    <th style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500 }}>Capacity</th>
+                    <th style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500 }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {hospitals.map((h, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${tokens.border}`, backgroundColor: i % 2 === 0 ? 'transparent' : tokens.bgTertiary }}>
+                      <td style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500, color: tokens.textPrimary }}>{h.properties?.name || 'Unknown Hospital'}</td>
+                      <td style={{ padding: `${SPACE.sm} ${SPACE.md}`, color: tokens.textSecondary }}>{h.properties?.capacity || 0} beds</td>
+                      <td style={{ padding: `${SPACE.sm} ${SPACE.md}`, color: getStatusColor(h.properties?.status), fontWeight: 600 }}>
+                        {h.properties?.status || 'Operational'}
+                      </td>
+                    </tr>
+                  ))}
+                  {hospitals.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: SPACE.md, textAlign: 'center', color: tokens.textSecondary }}>No hospital data available</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Shelters Table */}
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', marginBottom: '6px' }}>Relief Shelters:</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
-              <thead>
-                <tr style={{ backgroundColor: tokens.bgTertiary, borderBottom: `1px solid ${tokens.border}`, textAlign: 'left', color: tokens.textSecondary }}>
-                  <th style={{ padding: '6px 8px' }}>Shelter Name</th>
-                  <th style={{ padding: '6px 8px' }}>Capacity</th>
-                  <th style={{ padding: '6px 8px' }}>Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shelters.map((s, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${tokens.border}` }}>
-                    <td style={{ padding: '6px 8px', fontWeight: 600, color: tokens.textPrimary }}>{s.properties?.name}</td>
-                    <td style={{ padding: '6px 8px', color: tokens.textSecondary }}>{s.properties?.capacity} people</td>
-                    <td style={{ padding: '6px 8px', color: tokens.textMuted }}>{s.properties?.shelterType}</td>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: tokens.info || '#0284c7', marginBottom: SPACE.sm }}>Relief Shelters</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: tokens.tableHeader, borderBottom: `1px solid ${tokens.border}`, textAlign: 'left', color: tokens.textSecondary }}>
+                    <th style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500 }}>Shelter Name</th>
+                    <th style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500 }}>Capacity</th>
+                    <th style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500 }}>Type</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {shelters.map((s, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${tokens.border}`, backgroundColor: i % 2 === 0 ? 'transparent' : tokens.bgTertiary }}>
+                      <td style={{ padding: `${SPACE.sm} ${SPACE.md}`, fontWeight: 500, color: tokens.textPrimary }}>{s.properties?.name || 'Unknown Shelter'}</td>
+                      <td style={{ padding: `${SPACE.sm} ${SPACE.md}`, color: tokens.textSecondary }}>{s.properties?.capacity || 0} people</td>
+                      <td style={{ padding: `${SPACE.sm} ${SPACE.md}`, color: tokens.textSecondary }}>{s.properties?.shelterType || 'Standard'}</td>
+                    </tr>
+                  ))}
+                  {shelters.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: SPACE.md, textAlign: 'center', color: tokens.textSecondary }}>No shelter data available</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>
-      </div>
+      </Card>
 
     </div>
   );

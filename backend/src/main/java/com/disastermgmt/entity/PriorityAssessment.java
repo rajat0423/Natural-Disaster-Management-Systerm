@@ -1,7 +1,7 @@
 package com.disastermgmt.entity;
 
 import jakarta.persistence.*;
-import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.Geometry;
 
 import java.time.LocalDateTime;
 
@@ -52,11 +52,17 @@ public class PriorityAssessment {
     @Column(name = "weight_accessibility")
     private Double weightAccessibility;
 
+    @Column(name = "hazard_proximity_score")
+    private Double hazardProximityScore;
+
+    @Column(name = "weight_hazard_proximity")
+    private Double weightHazardProximity;
+
     @Column(columnDefinition = "TEXT")
     private String explanation;
 
-    @Column(columnDefinition = "geometry(Polygon, 4326)", nullable = false)
-    private Polygon geometry;
+    @Column(columnDefinition = "geometry(Geometry, 4326)", nullable = false)
+    private Geometry geometry;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -111,11 +117,17 @@ public class PriorityAssessment {
     public Double getWeightAccessibility() { return weightAccessibility; }
     public void setWeightAccessibility(Double weightAccessibility) { this.weightAccessibility = weightAccessibility; }
 
+    public Double getHazardProximityScore() { return hazardProximityScore; }
+    public void setHazardProximityScore(Double hazardProximityScore) { this.hazardProximityScore = hazardProximityScore; }
+
+    public Double getWeightHazardProximity() { return weightHazardProximity; }
+    public void setWeightHazardProximity(Double weightHazardProximity) { this.weightHazardProximity = weightHazardProximity; }
+
     public String getExplanation() { return explanation; }
     public void setExplanation(String explanation) { this.explanation = explanation; }
 
-    public Polygon getGeometry() { return geometry; }
-    public void setGeometry(Polygon geometry) { this.geometry = geometry; }
+    public Geometry getGeometry() { return geometry; }
+    public void setGeometry(Geometry geometry) { this.geometry = geometry; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

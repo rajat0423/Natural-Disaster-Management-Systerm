@@ -1,4 +1,10 @@
+import os
+import sys
 import json
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT_DIR, "ai-service"))
+
 from app.routing.router import DisasterGraphRouter
 
 router = DisasterGraphRouter()
@@ -17,7 +23,7 @@ r1 = router.calculate_route(
 )
 print("[Case 1: Route to Nearest Hospital (Detour Mode)]")
 print(f"  Success: {r1['success']}")
-print(f"  Destination: {r1['summary']['destination_name']} ({r1['summary']['destination_type']}, Beds: {r1['summary']['destination_capacity']})")
+print(f"  Destination: {r1['summary']['destination_name']} ({r1['summary']['destination_type']}, Beds: {r1['summary'].get('destination_capacity', 'N/A')})")
 print(f"  Distance: {r1['summary']['distance_km']} km | Estimated Time: ~{r1['summary']['estimated_minutes']} mins")
 print(f"  Calculation Latency: {r1['summary']['calculation_time_ms']} ms")
 print(f"  Blocked Roads Avoided ({len(r1['summary']['blocked_roads_avoided'])}): {', '.join(r1['summary']['blocked_roads_avoided'][:2])}...")
@@ -32,7 +38,7 @@ r2 = router.calculate_route(
 )
 print("\n[Case 2: Route to Nearest Shelter (Detour Mode)]")
 print(f"  Success: {r2['success']}")
-print(f"  Destination: {r2['summary']['destination_name']} ({r2['summary']['destination_type']}, Capacity: {r2['summary']['destination_capacity']})")
+print(f"  Destination: {r2['summary']['destination_name']} ({r2['summary']['destination_type']}, Capacity: {r2['summary'].get('destination_capacity', 'N/A')})")
 print(f"  Distance: {r2['summary']['distance_km']} km | Estimated Time: ~{r2['summary']['estimated_minutes']} mins")
 print(f"  Calculation Latency: {r2['summary']['calculation_time_ms']} ms")
 

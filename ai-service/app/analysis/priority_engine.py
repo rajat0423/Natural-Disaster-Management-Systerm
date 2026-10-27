@@ -171,14 +171,18 @@ class PriorityEngine:
                 population_score        DOUBLE PRECISION NOT NULL,
                 infrastructure_score    DOUBLE PRECISION NOT NULL,
                 accessibility_score     DOUBLE PRECISION NOT NULL,
+                hazard_proximity_score  DOUBLE PRECISION DEFAULT 0.0,
                 weight_severity         DOUBLE PRECISION DEFAULT 0.40,
                 weight_population       DOUBLE PRECISION DEFAULT 0.25,
                 weight_infrastructure   DOUBLE PRECISION DEFAULT 0.20,
                 weight_accessibility    DOUBLE PRECISION DEFAULT 0.15,
+                weight_hazard_proximity DOUBLE PRECISION DEFAULT 0.10,
                 explanation             TEXT,
                 geometry                GEOMETRY(Polygon, 4326) NOT NULL,
                 created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            ALTER TABLE priority_assessments ADD COLUMN IF NOT EXISTS hazard_proximity_score DOUBLE PRECISION DEFAULT 0.0;
+            ALTER TABLE priority_assessments ADD COLUMN IF NOT EXISTS weight_hazard_proximity DOUBLE PRECISION DEFAULT 0.10;
             CREATE INDEX IF NOT EXISTS idx_priority_geom ON priority_assessments USING GIST(geometry);
             CREATE INDEX IF NOT EXISTS idx_priority_scenario ON priority_assessments(scenario_id);
             CREATE INDEX IF NOT EXISTS idx_priority_level ON priority_assessments(priority_level);

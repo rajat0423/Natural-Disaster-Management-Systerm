@@ -22,8 +22,11 @@ from shapely.geometry import Polygon, mapping
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(os.path.join(ROOT_DIR, "ai-service"))
 
+import segmentation_models_pytorch as smp
 from app.cv.stage1_localization import BuildingLocalizationUNet
 from app.cv.stage2_damage_classification import SiameseDamageClassifier, DAMAGE_CLASSES
+from app.cv.stage2_benchmark import SiameseResNet
+from app.cv.model_registry import get_model_entry
 
 MODELS_DIR = os.path.join(ROOT_DIR, "ai-service", "models")
 STAGE1_MODEL_PATH = os.path.join(MODELS_DIR, "stage1_building_loc_best.pth")
@@ -31,35 +34,79 @@ STAGE2_MODEL_PATH = os.path.join(MODELS_DIR, "stage2_damage_clf_best.pth")
 
 
 class TwoStageDisasterPipeline:
-    def __init__(self, stage1_weights=STAGE1_MODEL_PATH, stage2_weights=STAGE2_MODEL_PATH, device="cpu"):
+    def __init__(self, model_version="dras_india_v3", device="cpu"):
         self.device = torch.device(device)
-        self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-        self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        self.entry = get_model_entry(model_version)
+        self.model_version = self.entry["model_version"]
+        self.mean = np.array(self.entry.get("mean", [0.485, 0.456, 0.406]), dtype=np.float32)
+        self.std = np.array(self.entry.get("std", [0.229, 0.224, 0.225]), dtype=np.float32)
         
         # 1. Load Stage 1 Localization Model
-        self.stage1 = BuildingLocalizationUNet(in_channels=6)
-        if os.path.exists(stage1_weights):
-            self.stage1.load_state_dict(torch.load(stage1_weights, map_location=self.device, weights_only=True))
-            print(f"[Pipeline] Loaded Stage 1 Localization weights from {stage1_weights}")
+        s1_cfg = self.entry["stage1"]
+        self.s1_path = s1_cfg["checkpoint_path"]
+        self.s1_rel_path = s1_cfg["relative_path"]
+        self.s1_arch = f"{s1_cfg['architecture']} ({s1_cfg.get('encoder', '')})"
+        
+        if s1_cfg["architecture"] == "U-Net++":
+            self.stage1 = smp.UnetPlusPlus(
+                encoder_name=s1_cfg["encoder"],
+                encoder_weights=None,
+                in_channels=s1_cfg["in_channels"],
+                classes=s1_cfg["classes"],
+                activation=None
+            )
+        else:
+            self.stage1 = BuildingLocalizationUNet(in_channels=s1_cfg["in_channels"])
+            
+        if os.path.exists(self.s1_path):
+            data = torch.load(self.s1_path, map_location=self.device, weights_only=False)
+            state_dict = data["model_state_dict"] if isinstance(data, dict) and "model_state_dict" in data else data
+            self.stage1.load_state_dict(state_dict)
+            print(f"[Pipeline] Loaded Stage 1 Localization weights from {self.s1_rel_path}")
+        else:
+            print(f"[Pipeline] Warning: Stage 1 checkpoint not found at {self.s1_path}")
+            
         self.stage1.to(self.device)
         self.stage1.eval()
         
-        # 2. Load Stage 2 Siamese Damage Classifier
-        self.stage2 = SiameseDamageClassifier(num_classes=4, pretrained=False)
-        if os.path.exists(stage2_weights):
-            self.stage2.load_state_dict(torch.load(stage2_weights, map_location=self.device, weights_only=True))
-            print(f"[Pipeline] Loaded Stage 2 Damage Classifier weights from {stage2_weights}")
-        self.stage2.to(self.device)
-        self.stage2.eval()
+        # 2. Load Stage 2 Damage Classifier
+        s2_cfg = self.entry.get("stage2")
+        if s2_cfg:
+            self.s2_path = s2_cfg["checkpoint_path"]
+            self.s2_rel_path = s2_cfg["relative_path"]
+            self.s2_arch = f"{s2_cfg['architecture']} ({s2_cfg.get('backbone', '')})"
+            
+            if s2_cfg["architecture"] == "SiameseResNet":
+                self.stage2 = SiameseResNet(backbone=s2_cfg["backbone"], num_classes=s2_cfg["num_classes"])
+            else:
+                self.stage2 = SiameseDamageClassifier(num_classes=s2_cfg["num_classes"], pretrained=False)
+                
+            if os.path.exists(self.s2_path):
+                data2 = torch.load(self.s2_path, map_location=self.device, weights_only=False)
+                state_dict2 = data2["model_state_dict"] if isinstance(data2, dict) and "model_state_dict" in data2 else data2
+                self.stage2.load_state_dict(state_dict2)
+                print(f"[Pipeline] Loaded Stage 2 Damage Classifier weights from {self.s2_rel_path}")
+            else:
+                print(f"[Pipeline] Warning: Stage 2 checkpoint not found at {self.s2_path}")
+                
+            self.stage2.to(self.device)
+            self.stage2.eval()
+        else:
+            self.stage2 = None
+            self.s2_path = None
+            self.s2_rel_path = "none"
+            self.s2_arch = "none"
 
-    def predict_pair(self, pre_rgb, post_rgb, bldg_threshold=0.5, crop_size=(64, 64), min_area=15, padding=8):
+    def predict_pair(self, pre_rgb, post_rgb, bldg_threshold=0.5, crop_size=(64, 64), min_area=15, padding=8, base_lat=None, base_lon=None):
         """
         Runs the complete Two-Stage inference pipeline on a paired pre/post disaster tile.
         
         pre_rgb: (H, W, 3) uint8 numpy array (RGB)
         post_rgb: (H, W, 3) uint8 numpy array (RGB)
+        base_lat: optional geographic latitude anchor for EPSG:4326 output
+        base_lon: optional geographic longitude anchor for EPSG:4326 output
         
-        Returns: (GeoJSON FeatureCollection dict, benchmark dict)
+        Returns: (GeoJSON FeatureCollection dict)
         """
         t0_total = time.perf_counter()
         orig_h, orig_w, _ = pre_rgb.shape
@@ -105,10 +152,17 @@ class TwoStageDisasterPipeline:
             x0 = max(0, x - padding)
             y0 = max(0, y - padding)
             x1 = min(orig_w, x + w + padding)
-            y1 = min(orig_h, x + h + padding)
+            y1 = min(orig_h, y + h + padding)
             
-            c_pre = cv2.resize(pre_rgb[y0:y1, x0:x1], crop_size, interpolation=cv2.INTER_LINEAR)
-            c_post = cv2.resize(post_rgb[y0:y1, x0:x1], crop_size, interpolation=cv2.INTER_LINEAR)
+            if x1 <= x0 or y1 <= y0:
+                continue
+            crop_pre_raw = pre_rgb[y0:y1, x0:x1]
+            crop_post_raw = post_rgb[y0:y1, x0:x1]
+            if crop_pre_raw.size == 0 or crop_post_raw.size == 0:
+                continue
+                
+            c_pre = cv2.resize(crop_pre_raw, crop_size, interpolation=cv2.INTER_LINEAR)
+            c_post = cv2.resize(crop_post_raw, crop_size, interpolation=cv2.INTER_LINEAR)
             
             c_pre_n = (c_pre.astype(np.float32) / 255.0 - self.mean) / self.std
             c_post_n = (c_post.astype(np.float32) / 255.0 - self.mean) / self.std
@@ -155,11 +209,23 @@ class TwoStageDisasterPipeline:
                 
                 damage_counts[p_name] += 1
                 
+                if base_lat is not None and base_lon is not None:
+                    meters_per_deg = 111320.0
+                    deg_per_px_lat = 0.5 / meters_per_deg
+                    deg_per_px_lon = 0.5 / (meters_per_deg * np.cos(np.radians(base_lat)))
+                    coords = [[
+                        [round(float(base_lon + (pt[0] - orig_w / 2.0) * deg_per_px_lon), 7),
+                         round(float(base_lat - (pt[1] - orig_h / 2.0) * deg_per_px_lat), 7)]
+                        for pt in poly.exterior.coords
+                    ]]
+                else:
+                    coords = [[list(pt) for pt in poly.exterior.coords]]
+
                 features.append({
                     "type": "Feature",
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[list(pt) for pt in poly.exterior.coords]]
+                        "coordinates": coords
                     },
                     "properties": {
                         "building_id": i + 1,
@@ -176,11 +242,21 @@ class TwoStageDisasterPipeline:
             "type": "FeatureCollection",
             "features": features,
             "metadata": {
+                "model_version": self.model_version,
+                "pipeline_type": self.entry["pipeline_type"],
+                "stage1_checkpoint_loaded": self.s1_rel_path,
+                "stage2_checkpoint_loaded": self.s2_rel_path,
+                "stage1_architecture": self.s1_arch,
+                "stage2_architecture": self.s2_arch,
+                "dataset_version": self.entry["dataset_version"],
+                "preprocessing_version": self.entry["preprocessing_version"],
                 "total_buildings_detected": len(features),
                 "damage_summary": damage_counts,
+                "damage_breakdown": damage_counts,
                 "stage1_latency_ms": round(dt_s1_ms, 2),
                 "stage2_latency_ms": round(dt_s2_ms, 2),
-                "total_latency_ms": round(dt_total_ms, 2)
+                "total_latency_ms": round(dt_total_ms, 2),
+                "inference_latency_ms": round(dt_total_ms, 2)
             }
         }
         

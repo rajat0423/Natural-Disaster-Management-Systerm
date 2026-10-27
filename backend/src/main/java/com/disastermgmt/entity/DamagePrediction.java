@@ -1,7 +1,7 @@
 package com.disastermgmt.entity;
 
 import jakarta.persistence.*;
-import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.Geometry;
 
 import java.time.LocalDateTime;
 
@@ -45,8 +45,8 @@ public class DamagePrediction {
     @Column(name = "is_prediction")
     private Boolean isPrediction = true;
 
-    @Column(columnDefinition = "geometry(Polygon, 4326)", nullable = false)
-    private Polygon geometry;
+    @Column(columnDefinition = "geometry(Geometry, 4326)", nullable = false)
+    private Geometry geometry;
 
     @Column(name = "tile_x")
     private Integer tileX;
@@ -113,8 +113,8 @@ public class DamagePrediction {
     public Boolean getIsPrediction() { return isPrediction; }
     public void setIsPrediction(Boolean isPrediction) { this.isPrediction = isPrediction; }
 
-    public Polygon getGeometry() { return geometry; }
-    public void setGeometry(Polygon geometry) { this.geometry = geometry; }
+    public Geometry getGeometry() { return geometry; }
+    public void setGeometry(Geometry geometry) { this.geometry = geometry; }
 
     public Integer getTileX() { return tileX; }
     public void setTileX(Integer tileX) { this.tileX = tileX; }

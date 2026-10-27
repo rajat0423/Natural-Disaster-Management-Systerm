@@ -1,7 +1,10 @@
 package com.disastermgmt.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.locationtech.jts.geom.*;
+import org.locationtech.jts.io.geojson.GeoJsonReader;
 
 import java.util.*;
 
@@ -43,6 +46,24 @@ public class GeoJsonFeature {
      */
     public Map<String, Object> getGeometry() {
         return convertGeometry(jtsGeometry);
+    }
+
+    /**
+     * Deserializes GeoJSON geometry into JTS Geometry with SRID 4326.
+     */
+    @JsonProperty("geometry")
+    public void setGeometryNode(JsonNode node) {
+        if (node != null && !node.isNull()) {
+            try {
+                GeoJsonReader reader = new GeoJsonReader();
+                this.jtsGeometry = reader.read(node.toString());
+                if (this.jtsGeometry != null) {
+                    this.jtsGeometry.setSRID(4326);
+                }
+            } catch (Exception e) {
+                this.jtsGeometry = null;
+            }
+        }
     }
 
     /**
