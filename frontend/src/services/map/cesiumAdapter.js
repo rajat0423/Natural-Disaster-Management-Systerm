@@ -693,17 +693,22 @@ export function convertRouteTo3DEntities(activeRoute) {
 export function convertAlertsTo3DEntities(alerts = [], scenarioId = 1, zoneFeatures = []) {
   const entities = [];
 
+  if (!alerts || alerts.length === 0) return entities;
+
   const activeEvacAlerts = alerts.filter(a =>
-    a.msgType !== 'Cancel' && (
+    a.msgType !== 'Cancel' && a.status !== 'Cancelled' && (
       (a.urgency && a.urgency.toLowerCase() === 'immediate') ||
       (a.severity && (a.severity.toLowerCase() === 'extreme' || a.severity.toLowerCase() === 'severe')) ||
       (a.headline && a.headline.toLowerCase().includes('evacuat'))
     )
   );
 
-  const targetAlerts = activeEvacAlerts.length > 0
-    ? activeEvacAlerts
-    : (alerts.length > 0 ? [alerts[0]] : [{ id: 'evac-default', headline: 'MANDATORY EVACUATION: Sector Response Active' }]);
+  // If all alerts are cancelled or none are active, do not render any 3D beacon
+  if (activeEvacAlerts.length === 0) {
+    return entities;
+  }
+
+  const targetAlerts = activeEvacAlerts;
 
   const SCENARIO_CENTERS = {
     1: { lat: 34.0259, lon: -118.7798 },

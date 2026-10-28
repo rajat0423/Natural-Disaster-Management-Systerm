@@ -30,6 +30,7 @@ export default function CesiumGlobe({
   setMapMode,
   viewLevel = 'BOTH',
   layers = {},
+  isAlertsSilenced = false,
   damageFilter = 'ALL',
   priorityFilter = 'ALL',
   confidenceThreshold = 0.0,
@@ -439,19 +440,24 @@ export default function CesiumGlobe({
   useEffect(() => {
     const ds = dataSourcesRef.current.alerts;
     ds.entities.removeAll();
-    if (!layers.alerts) {
+    if (!layers.alerts || isAlertsSilenced) {
       ds.show = false;
       return;
     }
-    ds.show = true;
 
     const alertList = rawDataRef.current?.alertList || [];
     const zones = rawDataRef.current?.zones?.features || [];
     const entities = convertAlertsTo3DEntities(alertList, selectedScenarioId, zones);
+    if (!entities || entities.length === 0) {
+      ds.show = false;
+      return;
+    }
+
+    ds.show = true;
     for (const ent of entities) {
       ds.entities.add(ent);
     }
-  }, [layers.alerts, selectedScenarioId, dataVersion]);
+  }, [layers.alerts, isAlertsSilenced, selectedScenarioId, dataVersion]);
 
   // 9. Render / Update CAD Tactical Fleet Telemetry in 3D
   useEffect(() => {

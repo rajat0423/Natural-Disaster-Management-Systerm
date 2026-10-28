@@ -1515,6 +1515,7 @@ function DisasterMap() {
     stopSiren();
     setIsAlertsSilenced(true);
     setIsAlertMinimized(true);
+    setLayers(prev => ({ ...prev, alerts: false }));
     try {
       await api.post(`/alerts/cancel-all?scenarioId=${selectedScenarioId}`);
     } catch (e) {
@@ -1950,8 +1951,13 @@ function DisasterMap() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <input
                   type="checkbox"
-                  checked={layers.alerts}
-                  onChange={(e) => setLayers({ ...layers, alerts: e.target.checked })}
+                  checked={layers.alerts && !isAlertsSilenced}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setLayers(prev => ({ ...prev, alerts: val }));
+                    setIsAlertsSilenced(!val);
+                    if (!val) stopSiren();
+                  }}
                 />
                 <span style={{ fontWeight: 700 }}>🚨 Emergency Alerts (CAP)</span>
               </span>
@@ -2055,8 +2061,13 @@ function DisasterMap() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <input
                   type="checkbox"
-                  checked={layers.alerts}
-                  onChange={(e) => setLayers({ ...layers, alerts: e.target.checked })}
+                  checked={layers.alerts && !isAlertsSilenced}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setLayers(prev => ({ ...prev, alerts: val }));
+                    setIsAlertsSilenced(!val);
+                    if (!val) stopSiren();
+                  }}
                 />
                 <span style={{ fontWeight: 600, color: '#ef4444' }}>🚨 CAP Alerts (CAP 1.2)</span>
               </span>
@@ -2482,6 +2493,7 @@ function DisasterMap() {
                   } else {
                     setIsAlertsSilenced(false);
                     setIsAlertMinimized(false);
+                    setLayers(prev => ({ ...prev, alerts: true }));
                   }
                 }}
                 style={{
@@ -2716,6 +2728,7 @@ function DisasterMap() {
             setMapMode={setMapMode}
             viewLevel={viewLevel}
             layers={layers}
+            isAlertsSilenced={isAlertsSilenced}
             damageFilter={damageFilter}
             priorityFilter={priorityFilter}
             confidenceThreshold={confidenceThreshold}
