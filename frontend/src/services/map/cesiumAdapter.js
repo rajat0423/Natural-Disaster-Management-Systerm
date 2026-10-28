@@ -384,6 +384,7 @@ export function convertHazardsTo3DEntities(hazardFeatures = [], scenarioId = 1) 
       const color = isDharali ? Cesium.Color.fromCssColorString('#ef4444').withAlpha(0.38) : Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.32);
       const outlineColor = isDharali ? Cesium.Color.fromCssColorString('#dc2626') : Cesium.Color.fromCssColorString('#d97706');
 
+      // 1. Clamped 3D Fill Polygon
       entities.push({
         id: `hazard-${p.id || i}`,
         name: isDharali ? 'Dharali 2025 Debris / Impact Extent (20.4 ha)' : (p.name || 'Hazard Extent'),
@@ -396,6 +397,59 @@ export function convertHazardsTo3DEntities(hazardFeatures = [], scenarioId = 1) 
         properties: {
           ...p,
           _drasType: 'hazard'
+        }
+      });
+
+      // 2. High-Visibility Ground-Clamped Glowing Disaster Boundary Perimeter Line
+      const closedFlatCoords = [...flatCoords];
+      if (ring.length > 0) {
+        closedFlatCoords.push(ring[0][0], ring[0][1]);
+      }
+      const closedPositions = Cesium.Cartesian3.fromDegreesArray(closedFlatCoords);
+
+      entities.push({
+        id: `hazard-boundary-glow-${p.id || i}`,
+        name: `Disaster Boundary Perimeter: ${p.name || 'Hazard Extent'}`,
+        polyline: {
+          positions: closedPositions,
+          clampToGround: true,
+          width: 7,
+          material: new Cesium.PolylineGlowMaterialProperty({
+            glowPower: 0.35,
+            taperPower: 0.05,
+            color: isDharali ? Cesium.Color.fromCssColorString('#ef4444') : Cesium.Color.fromCssColorString('#f97316')
+          }),
+          classificationType: Cesium.ClassificationType.TERRAIN
+        }
+      });
+
+      entities.push({
+        id: `hazard-boundary-core-${p.id || i}`,
+        name: `Disaster Boundary Stroke: ${p.name || 'Hazard Extent'}`,
+        polyline: {
+          positions: closedPositions,
+          clampToGround: true,
+          width: 2.5,
+          material: new Cesium.ColorMaterialProperty(Cesium.Color.WHITE.withAlpha(0.92)),
+          classificationType: Cesium.ClassificationType.TERRAIN
+        }
+      });
+
+      // 3. Perimeter Boundary Identifier Badge
+      const labelCoord = ring[0] || [centerLon, centerLat];
+      const hazardTitle = isDharali ? 'DEBRIS IMPACT EXTENT (20.4 ha)' : (p.hazardType || p.hazard_type || 'HAZARD ZONE').replace(/_/g, ' ');
+      entities.push({
+        id: `hazard-boundary-label-${p.id || i}`,
+        position: Cesium.Cartesian3.fromDegrees(labelCoord[0], labelCoord[1], 45),
+        label: {
+          text: `⚠️ DISASTER BOUNDARY: ${hazardTitle}`,
+          font: 'bold 11px Inter, sans-serif',
+          fillColor: Cesium.Color.WHITE,
+          backgroundColor: Cesium.Color.fromCssColorString(isDharali ? 'rgba(185, 28, 28, 0.95)' : 'rgba(194, 65, 12, 0.95)'),
+          showBackground: true,
+          backgroundPadding: new Cesium.Cartesian2(8, 4),
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
         }
       });
     } catch (e) {
@@ -634,10 +688,159 @@ export function convertRouteTo3DEntities(activeRoute) {
 
 /**
  * Converts OASIS CAP v1.2 Alerts to 3D Cesium broadcast zone entities.
- * As requested: Do NOT plot CAP polygon geometry or blinking beacons on 3D globe — show alerts in UI only.
+ * Animated 3D "EVACUATE IMMEDIATELY" beacon with expanding strobe shockwave rings.
  */
-export function convertAlertsTo3DEntities(alerts = []) {
-  return [];
+export function convertAlertsTo3DEntities(alerts = [], scenarioId = 1, zoneFeatures = []) {
+  const entities = [];
+
+  const activeEvacAlerts = alerts.filter(a =>
+    a.msgType !== 'Cancel' && (
+      (a.urgency && a.urgency.toLowerCase() === 'immediate') ||
+      (a.severity && (a.severity.toLowerCase() === 'extreme' || a.severity.toLowerCase() === 'severe')) ||
+      (a.headline && a.headline.toLowerCase().includes('evacuat'))
+    )
+  );
+
+  const targetAlerts = activeEvacAlerts.length > 0
+    ? activeEvacAlerts
+    : (alerts.length > 0 ? [alerts[0]] : [{ id: 'evac-default', headline: 'MANDATORY EVACUATION: Sector Response Active' }]);
+
+  const SCENARIO_CENTERS = {
+    1: { lat: 34.0259, lon: -118.7798 },
+    2: { lat: 30.485, lon: 79.695 },
+    3: { lat: 19.8135, lon: 85.8312 },
+    4: { lat: 31.036, lon: 78.685 }
+  };
+
+  targetAlerts.forEach((alt, idx) => {
+    let lat = null, lon = null;
+    let targetZone = null;
+
+    const zoneId = alt.targetZoneId || alt.target_zone_id;
+    if (zoneId && zoneFeatures.length > 0) {
+      targetZone = zoneFeatures.find(f => (f.properties?.id == zoneId) || (f.id == zoneId));
+    }
+
+    if (!targetZone && alt.headline && zoneFeatures.length > 0) {
+      targetZone = zoneFeatures.find(f => f.properties?.name && alt.headline.toLowerCase().includes(f.properties.name.toLowerCase()));
+    }
+
+    if (!targetZone && zoneFeatures.length > 0) {
+      targetZone = zoneFeatures.find(f => f.properties?.criticality === 'CRITICAL') || zoneFeatures[0];
+    }
+
+    const geom = alt.geometry || targetZone?.geometry;
+    if (geom && geom.coordinates) {
+      if (geom.type === 'Point') {
+        lon = geom.coordinates[0];
+        lat = geom.coordinates[1];
+      } else if (geom.type === 'Polygon') {
+        const ring = geom.coordinates[0];
+        if (ring && ring.length > 0) {
+          let sx = 0, sy = 0;
+          ring.forEach(pt => { sx += pt[0]; sy += pt[1]; });
+          lon = sx / ring.length;
+          lat = sy / ring.length;
+        }
+      } else if (geom.type === 'MultiPolygon') {
+        const ring = geom.coordinates[0]?.[0];
+        if (ring && ring.length > 0) {
+          let sx = 0, sy = 0;
+          ring.forEach(pt => { sx += pt[0]; sy += pt[1]; });
+          lon = sx / ring.length;
+          lat = sy / ring.length;
+        }
+      }
+    }
+
+    if (!lat || !lon) {
+      const center = SCENARIO_CENTERS[scenarioId] || { lat: 30.485, lon: 79.695 };
+      lat = center.lat;
+      lon = center.lon;
+    }
+
+    const altId = alt.id || alt.identifier || idx;
+    const startEpoch = Date.now();
+
+    // 1. 3D Animated Core Strobe Beacon & Label
+    entities.push({
+      id: `cap-alert-core-${altId}`,
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, 70),
+      point: {
+        pixelSize: new Cesium.CallbackProperty(() => {
+          const t = (Date.now() - startEpoch) / 1000;
+          return 22 + Math.sin(t * 8) * 6; // rapid emergency strobe pulse 16px - 28px
+        }, false),
+        color: new Cesium.CallbackProperty(() => {
+          const t = (Date.now() - startEpoch) / 1000;
+          return Math.sin(t * 8) > 0
+            ? Cesium.Color.fromCssColorString('#ff0000')
+            : Cesium.Color.fromCssColorString('#ef4444');
+        }, false),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 3,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      },
+      label: {
+        text: `🚨 EVACUATE IMMEDIATELY\n${alt.headline || 'MANDATORY EVACUATION ORDER'}`,
+        font: 'bold 13px Inter, sans-serif',
+        fillColor: Cesium.Color.WHITE,
+        backgroundColor: Cesium.Color.fromCssColorString('rgba(220, 38, 38, 0.95)'),
+        showBackground: true,
+        backgroundPadding: new Cesium.Cartesian2(12, 6),
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        pixelOffset: new Cesium.Cartesian2(0, -30),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      },
+      properties: { ...alt, _drasType: 'evac_alert' }
+    });
+
+    // 2. 3D Animated Expanding Shockwave Ring 1
+    entities.push({
+      id: `cap-alert-shockwave-1-${altId}`,
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, 70),
+      point: {
+        pixelSize: new Cesium.CallbackProperty(() => {
+          const t = ((Date.now() - startEpoch) % 1400) / 1400;
+          return 24 + t * 65;
+        }, false),
+        color: new Cesium.CallbackProperty(() => {
+          const t = ((Date.now() - startEpoch) % 1400) / 1400;
+          return Cesium.Color.fromCssColorString('#ef4444').withAlpha((1 - t) * 0.7);
+        }, false),
+        outlineColor: new Cesium.CallbackProperty(() => {
+          const t = ((Date.now() - startEpoch) % 1400) / 1400;
+          return Cesium.Color.WHITE.withAlpha((1 - t) * 0.85);
+        }, false),
+        outlineWidth: 2,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
+    });
+
+    // 3. 3D Animated Expanding Shockwave Ring 2 (700ms phase offset)
+    entities.push({
+      id: `cap-alert-shockwave-2-${altId}`,
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, 70),
+      point: {
+        pixelSize: new Cesium.CallbackProperty(() => {
+          const t = (((Date.now() - startEpoch) + 700) % 1400) / 1400;
+          return 24 + t * 65;
+        }, false),
+        color: new Cesium.CallbackProperty(() => {
+          const t = (((Date.now() - startEpoch) + 700) % 1400) / 1400;
+          return Cesium.Color.fromCssColorString('#dc2626').withAlpha((1 - t) * 0.6);
+        }, false),
+        outlineColor: new Cesium.CallbackProperty(() => {
+          const t = (((Date.now() - startEpoch) + 700) % 1400) / 1400;
+          return Cesium.Color.WHITE.withAlpha((1 - t) * 0.75);
+        }, false),
+        outlineWidth: 2,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
+    });
+  });
+
+  return entities;
 }
 
 /**

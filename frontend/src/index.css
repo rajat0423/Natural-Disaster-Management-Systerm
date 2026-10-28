@@ -125,3 +125,106 @@ input, select, textarea {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ─── Emergency Evacuate Immediately Blinking Red Light Symbol ─────────────────── */
+@keyframes redBeaconFlash {
+  0%, 100% {
+    background-color: #ef4444;
+    box-shadow: 0 0 16px #ef4444, 0 0 32px rgba(239, 68, 68, 0.8), 0 0 48px rgba(220, 38, 38, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    background-color: #ff0000;
+    box-shadow: 0 0 28px #ff0000, 0 0 50px rgba(255, 0, 0, 1), 0 0 70px rgba(239, 68, 68, 0.9);
+    transform: scale(1.15);
+  }
+}
+
+@keyframes redBeaconRing {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.dras-evac-beacon-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justifyContent: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.dras-evac-beacon-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  margin-top: -25px;
+  margin-left: -25px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.35);
+  border: 2px solid #ef4444;
+  animation: redBeaconRing 1.4s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+  pointer-events: none;
+}
+
+.dras-evac-beacon-ring-2 {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  margin-top: -25px;
+  margin-left: -25px;
+  border-radius: 50%;
+  background: rgba(255, 0, 0, 0.25);
+  border: 2px solid #ff0000;
+  animation: redBeaconRing 1.4s infinite 0.7s cubic-bezier(0.215, 0.61, 0.355, 1);
+  pointer-events: none;
+}
+
+.dras-evac-beacon-core {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  border: 2.5px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  animation: redBeaconFlash 0.8s infinite ease-in-out;
+  z-index: 5;
+}
+
+.dras-evac-badge {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #dc2626;
+  color: #ffffff;
+  padding: 3px 10px;
+  border-radius: 14px;
+  border: 1.5px solid #ffffff;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.65);
+  animation: redBeaconFlash 0.8s infinite ease-in-out;
+  z-index: 6;
+}

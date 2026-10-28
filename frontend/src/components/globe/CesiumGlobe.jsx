@@ -435,11 +435,22 @@ export default function CesiumGlobe({
     }
   }, [activeRoute]);
 
-  // 8. Render / Update CAP v1.2 Broadcast Polygons in 3D
+  // 8. Render / Update CAP v1.2 Evacuation Alerts & Animation in 3D
   useEffect(() => {
     const ds = dataSourcesRef.current.alerts;
     ds.entities.removeAll();
-    // As requested: Do NOT plot CAP polygon geometry on 3D globe — show alerts in UI only
+    if (!layers.alerts) {
+      ds.show = false;
+      return;
+    }
+    ds.show = true;
+
+    const alertList = rawDataRef.current?.alertList || [];
+    const zones = rawDataRef.current?.zones?.features || [];
+    const entities = convertAlertsTo3DEntities(alertList, selectedScenarioId, zones);
+    for (const ent of entities) {
+      ds.entities.add(ent);
+    }
   }, [layers.alerts, selectedScenarioId, dataVersion]);
 
   // 9. Render / Update CAD Tactical Fleet Telemetry in 3D
