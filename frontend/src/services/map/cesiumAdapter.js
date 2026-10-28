@@ -398,29 +398,6 @@ export function convertHazardsTo3DEntities(hazardFeatures = [], scenarioId = 1) 
           _drasType: 'hazard'
         }
       });
-
-      // 3D Centroid Hazard Warning Beacon
-      entities.push({
-        id: `hazard-beacon-${p.id || i}`,
-        position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 60),
-        label: {
-          text: `⚠️ HAZARD ZONE: ${(p.hazardType || p.hazard_type || 'HAZARD EXTENT').replace(/_/g, ' ')}`,
-          font: 'bold 12px Inter, sans-serif',
-          fillColor: Cesium.Color.WHITE,
-          backgroundColor: Cesium.Color.fromCssColorString(isDharali ? 'rgba(220, 38, 38, 0.92)' : 'rgba(217, 119, 6, 0.92)'),
-          showBackground: true,
-          backgroundPadding: new Cesium.Cartesian2(8, 4),
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        },
-        point: {
-          pixelSize: 18,
-          color: Cesium.Color.fromCssColorString(isDharali ? '#ef4444' : '#f59e0b'),
-          outlineColor: Cesium.Color.WHITE,
-          outlineWidth: 3,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        }
-      });
     } catch (e) {
       console.warn('Failed to parse hazard polygon', e);
     }
@@ -657,77 +634,10 @@ export function convertRouteTo3DEntities(activeRoute) {
 
 /**
  * Converts OASIS CAP v1.2 Alerts to 3D Cesium broadcast zone entities.
+ * As requested: Do NOT plot CAP polygon geometry or blinking beacons on 3D globe — show alerts in UI only.
  */
 export function convertAlertsTo3DEntities(alerts = []) {
-  const entities = [];
-  for (const alt of alerts) {
-    if (!alt.geometry) continue;
-    const props = alt.properties || {};
-    const coords = getLinearRingCoordinates(alt.geometry);
-    if (!coords || coords.length < 3) continue;
-
-    const flatCoords = [];
-    let sumLon = 0, sumLat = 0;
-    for (const pt of coords) {
-      flatCoords.push(pt[0], pt[1]);
-      sumLon += pt[0];
-      sumLat += pt[1];
-    }
-    const centerLon = sumLon / coords.length;
-    const centerLat = sumLat / coords.length;
-
-    try {
-      const positions = Cesium.Cartesian3.fromDegreesArray(flatCoords);
-      const isExtreme = props.severity === 'Extreme';
-      const color = isExtreme
-        ? Cesium.Color.fromCssColorString('#ef4444').withAlpha(0.25)
-        : Cesium.Color.fromCssColorString('#f97316').withAlpha(0.22);
-      const outlineColor = isExtreme
-        ? Cesium.Color.fromCssColorString('#ef4444')
-        : Cesium.Color.fromCssColorString('#f97316');
-
-      entities.push({
-        id: `cap-alert-${props.id || props.identifier}`,
-        name: `CAP Alert: ${props.event || 'Emergency Warning'}`,
-        polygon: {
-          hierarchy: new Cesium.PolygonHierarchy(positions),
-          material: color,
-          outline: true,
-          outlineColor: outlineColor,
-          outlineWidth: 3.0,
-          height: 10.0,
-          extrudedHeight: 70.0
-        },
-        properties: { ...props, _drasType: 'cap_alert' }
-      });
-
-      // 3D Centroid Warning Badge
-      entities.push({
-        id: `cap-alert-badge-${props.id || props.identifier}`,
-        position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 100),
-        label: {
-          text: `🚨 EVACUATE IMMEDIATELY\n${props.event || 'EMERGENCY ALERT'} • ${(props.headline || '').slice(0, 42)}`,
-          font: 'bold 12px Inter, sans-serif',
-          fillColor: Cesium.Color.WHITE,
-          backgroundColor: Cesium.Color.fromCssColorString('rgba(220, 38, 38, 0.95)'),
-          showBackground: true,
-          backgroundPadding: new Cesium.Cartesian2(10, 5),
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        },
-        point: {
-          pixelSize: 20,
-          color: Cesium.Color.fromCssColorString('#ef4444'),
-          outlineColor: Cesium.Color.WHITE,
-          outlineWidth: 3,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        }
-      });
-    } catch (e) {
-      console.warn('Failed to parse alert 3D polygon', e);
-    }
-  }
-  return entities;
+  return [];
 }
 
 /**
